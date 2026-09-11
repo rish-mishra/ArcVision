@@ -1,0 +1,42 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/uploads/
+data/jobs/
+data/outputs/
+data/logs/
+data/diagnostics/
+data/db/*.sqlite3
+models/*.pt
+models/*.pth
+data/datasets/
+data/training_runs/
+.vscode/
+*.egg-info/
+.env
+# Generated static demo export (scripts/export_demo.py) -- rebuilt on
+# demand, never committed to main; published separately via the gh-pages
+# branch, not this ignore rule.
+dist/
+
+# Raw source recordings used for development/calibration/evaluation live at
+# the repo root and must never be committed (large, and not all are meant
+# to be public). Root-anchored (leading /) and .mov-specific on purpose:
+# it matches only *.mov files sitting directly in the repo root, so it
+# can never match a future demo/annotated.mp4 (a different extension, and
+# nested under demo/, not at root) on the gh-pages branch or anywhere else.
+/*.mov
+
+# Unrelated nested project (its own separate .git, no commits yet) that
+# happens to sit inside this working directory. It must never be swept
+# into ArcVision's history by a broad `git add`; it has its own repo and
+# its own future home (see docs/OVERNIGHT_PUBLICATION_READINESS.md,
+# section S) and is left in place, untouched, on purpose.
+/ShuttleSight/
+
+# Claude Code's own local session/housekeeping directory (currently just a
+# scheduled-tasks lock file). Already excluded locally via
+# .git/info/exclude, which is not itself tracked/shared -- mirrored here so
+# the exclusion travels with the repo to a fresh clone.
+.claude/

@@ -1,0 +1,40 @@
+# NOTE: install torch/torchvision FIRST from the CUDA wheel index, e.g.:
+#   pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+# before installing this file, otherwise ultralytics will pull a mismatched
+# CPU-only torch from PyPI and silently disable GPU acceleration.
+# See scripts/setup_env.ps1 which does this in the right order automatically.
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.20
+opencv-python==4.10.0.84
+mediapipe==0.10.14
+ultralytics==8.3.28
+numpy==1.26.4
+scipy==1.13.1
+imageio-ffmpeg==0.5.1
+matplotlib==3.9.2
+# CLIP text encoder used by YOLO-World (open-vocabulary hoop detection, see
+# app/vision/detection/hoop_detector_learned.py). Pinned explicitly here so
+# it installs up front instead of ultralytics silently git-cloning and
+# pip-installing it at first inference (its "AutoUpdate" behavior).
+ftfy==6.3.1
+regex==2026.7.19
+git+https://github.com/ultralytics/CLIP.git@68dce32140994dfcb645a1320c4ebdc034fc19fd#egg=clip
+pydantic==2.9.2
+pytest==8.3.3
+httpx==0.27.2
+# Basketball-specific RF-DETR detector (see docs/METHODOLOGY.md "Detector
+# architecture"). roboflow's package declares opencv-python-headless as a
+# dependency, which conflicts with the pinned opencv-python above if both
+# get installed (they share the same `cv2` import namespace) -- do NOT
+# `pip install opencv-python-headless` in this environment; the
+# already-pinned opencv-python satisfies every cv2 call this project makes.
+rfdetr==1.9.4
+roboflow==1.4.1
+python-dotenv==1.2.3
+# NOT required for running the app or for inference with the already-fine-tuned checkpoint --
+# only for RE-TRAINING (scripts/train_ball_rim_detector.py). If you do need to retrain, run
+# `pip install "rfdetr[train,loggers]"` separately (pulls pytorch_lightning, wandb, mlflow,
+# clearml, etc.), and see .venv/Lib/site-packages/sitecustomize.py + scripts/_rfdetr_compat.py
+# for a Windows Smart App Control workaround required before training will run at all -- do not
+# delete that sitecustomize.py file during venv cleanup without reading its docstring first.

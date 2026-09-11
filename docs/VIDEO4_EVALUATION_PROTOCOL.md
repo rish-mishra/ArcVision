@@ -191,3 +191,122 @@ order; do not skip to a metric that looks favorable.
 
 Nothing in this checklist should be filled in, and no code should be run, until Part A and Part B
 above are both complete.
+
+---
+
+## Part D — Results (one-shot evaluation, run after ground truth was frozen)
+
+Ground truth frozen in commit `fa9ee0d18dfac3c27b10ce613ec34b132fb1fd14` prior to any inference.
+Pipeline run once, unmodified, via the existing generic diagnostic entrypoint
+(`scripts/diagnose_video.py`, which only calls `app.pipeline.orchestrator.run_pipeline` — no
+detector, tracker, shot-event, outcome, biomechanics, or threshold code was touched). Raw outputs
+preserved at `data/diagnostics/real_test_04/` (`session_result.json`, `frame_level.csv`,
+`ball_trajectory.png`, `pose_confidence.png`, `diagnostic.mp4`) and via a new, read-only measurement
+script `scripts/eval_coverage_v4.py` (mirrors the existing `eval_coverage_v1v2v3.py` methodology
+exactly, pointed at Video 4 — no existing file edited).
+
+### Shot count
+**23 detected vs. 18 true.** All 18 ground-truth shots matched a detection (0 false negatives).
+**5 unmatched detections (false positives)**, at release times 22.498s, 57.68s, 77.508s, 109.653s,
+132.919s — none within ~4.5s of any logged shot.
+
+### Matched shots / false positives / false negatives
+- **Matched: 18/18** (every logged shot found a corresponding detection).
+- **False negatives: 0.**
+- **False positives: 5** (see below for cause).
+
+### Release timing errors (18 matched shots)
+Deltas between detected release time and the ground truth's hand-logged mm:ss: 0.305, 0.012,
+0.062, 0.888, 0.105, 0.098, 0.252, 0.697, 0.046, 0.207, 0.707, 0.39, 0.54, 0.006, 0.059, 0.161,
+0.947, 1.195 (seconds). Mean ≈0.36s, max 1.195s. **No timing concern** — well within what a
+hand-eyeballed, whole-second ground-truth log can resolve.
+
+### MAKE / MISS / UNKNOWN vs. 7 MADE / 11 MISSED ground truth
+
+| Truth \ Prediction | MADE | MISSED | UNKNOWN |
+|---|---|---|---|
+| **MADE (7)** | 2 | 3 | 2 |
+| **MISSED (11)** | 1 | 6 | 4 |
+
+- Correct calls: 8 (6 correct MISSED, 2 correct MADE)
+- **Wrong calls: 4** — 3 real makes called MISSED, 1 real miss called MADE
+- Abstentions (UNKNOWN): 6
+
+### Outcome accuracy
+- **Accuracy among calls FormAI was willing to make (non-UNKNOWN): 8/12 = 66.7%.**
+- UNKNOWN rate: 6/18 = 33.3%.
+- Made-shot recall (correctly called MADE outright): 2/7 = 28.6%.
+- Missed-shot recall (correctly called MISSED outright): 6/11 = 54.5%.
+- This is the headline negative finding: 1 in 3 of the calls the system was confident enough to
+  make were wrong, with a clear directional bias — 3 of 4 wrong calls were genuine makes reported
+  as misses.
+
+### Ball / rim detector coverage and confidence (raw RF-DETR, all 5,761 analyzed frames)
+- **Ball: 85.5% coverage, mean confidence 0.777.**
+- **Rim: 100.0% coverage, mean confidence 0.903.**
+- For comparison, the original documented V1 A/B benchmark: ball 80.8% / conf 0.693; rim 99.4% /
+  conf 0.963. RF-DETR itself performs at least as well on Video 4 as on its original benchmark
+  video — **the detector generalized cleanly; it is not the source of the outcome-accuracy
+  problem above.**
+- Post-tracking (Kalman) ball availability, from `frame_level.csv`: detected 72.7%, interpolated
+  15.5% (detected+interpolated = "reliable" = 88.2%), predicted 1.6%, unavailable 10.2%.
+
+### Biomechanics completeness
+275 of 322 possible metric fields populated across the 23 detected shots (14 fields × 23 shots) =
+**85.4%**. Zero shots were `excluded_from_analysis`.
+
+### Background person (lawn-mower) check
+Inspected the raw per-frame ball trace (`frame_level.csv`) for all 5 false-positive windows.
+**No evidence the background person contributed.** All 5 show continuous, high-confidence,
+physically coherent ball motion (translating position + oscillating vertical bounce) consistent
+with the ball actually being handled by the shooter — not a fixed-position or background-scale
+artifact. One (release ≈77.5s) computed a physically impossible `apex_height_norm = 7.846`
+(a normal shot is well under 1.0), which is a data-quality flag on the mechanics computation for
+that window, not evidence of the background person specifically.
+
+### False positives from dribbles/rebounds/retrievals
+**Yes — all 5 false-positive windows.** Each one's raw ball trace shows the same signature: the
+ball's x-position translates steadily across a couple hundred pixels while its y-position
+oscillates through one or more bounce cycles — the exact "dribble while walking" pattern already
+named and (on V1-V3) mitigated in `docs/METHODOLOGY.md`'s coherent-evidence section via the
+shooter-stationarity gate (`_shooter_was_stationary_nearby` / `max_load_hip_translation_norm`).
+That gate evidently did not fully suppress this pattern on Video 4's specific framing/pace. This
+is the ground-truth log's own predicted non-shot-event category ("natural dribbles, rebounds,
+ball retrievals, and walking between attempts") showing up exactly where expected — not a new,
+unexplained failure mode, but a known mitigation not generalizing as far as hoped.
+
+### Throughput / runtime
+- Full `diagnose_video.py` run: 10m44s wall time, but this includes diagnostic-only plot and
+  overlay-video rendering (~71s) that is not part of the shipped product.
+- **Core pipeline only** (frame analysis through biomechanics/outcome/finalizing, i.e. what
+  actually ships): ≈564s (9m24s) for 5,761 analyzed frames of a 192.3s video ≈ **10.2 fps**,
+  i.e. ≈2.9× slower than real-time on this hardware. Not directly comparable to the previously
+  documented 28-39fps figure, which measured the ball/rim detector stage in isolation — this
+  number is the full stack (person detection, pose, ball+rim detection, tracking, hoop
+  aggregation, shot segmentation, near-hoop enrichment, biomechanics, outcome reasoning) together.
+
+### Pre-committed stop condition — checked against `docs/FINAL_ARCHITECTURE_DECISION.md` §5
+
+1. Shot count/timing within the same honest error bars as V1-V3, no new failure category —
+   **partially fails**: timing is fine, but the false-positive rate (5/18 ≈ 28% extra) reproduces
+   the *already-documented* dribble-while-walking category at a magnitude similar to what the
+   stationary-hip gate was built to close on V1-V3, indicating that gate does not fully
+   generalize to this footage.
+2. Any background false positives belong to the already-documented roofline-type class — **moot/
+   satisfied**: no background-related false positives were found at all.
+3. MADE/MISSED calls that are made are correct against manual review — **fails**: only 66.7%
+   (8/12) of non-abstained calls were correct, with a clear bias toward calling real makes as
+   misses.
+4. No production file needed to change to get here — **satisfied**: nothing was changed.
+5. Documentation reflects limitations — **not yet done**; pending as a follow-up per the
+   already-written implementation plan.
+
+### VIDEO 4 VERDICT: **FAIL**
+
+**Responsible criterion: #3.** The pre-committed bar was that calls FormAI actually makes (not
+abstained as UNKNOWN) must be correct against manual review. 4 of 12 such calls were wrong
+(66.7% accuracy), including 3 of 7 genuine makes called MISSED outright — a directional,
+non-random error pattern, not noise. That alone is sufficient to fail this evaluation regardless
+of the other criteria. Criterion #1 (false-positive rate reproducing the dribble-while-walking
+category) is a secondary, contributing concern. Per the pre-committed protocol, no fix is
+proposed here and none should be attempted without a separate, explicit request.
