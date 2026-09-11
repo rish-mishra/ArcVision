@@ -1,344 +1,256 @@
 # ArcVision — Publication Report
 
-Publication pass. **Local publication steps completed and verified.
-Remote publication (GitHub repository creation, push, Pages, model
-release, live QA) is blocked** on a hard external prerequisite — no GitHub
-CLI/authentication is available in this environment — and was stopped
-there rather than improvised around, per explicit instruction. Exact manual
-steps to unblock it are given below (section Y) alongside the full,
-unexecuted command sequence.
+**PUBLISHED — LIVE AND VERIFIED.** GitHub authentication became available
+after the prior pass stopped at that exact blocker; this pass resumed from
+there, created the repository, pushed source, published the static demo,
+released the model checkpoint as a Release asset, and verified the live
+result end to end — not just locally.
 
 ## A. LICENSE holder
 
-`LICENSE` finalized:
-
-```
-Copyright (c) 2026 Rishabh Mishra
-```
-
-Verified against the canonical MIT template — permission grant, "AS IS"
-warranty disclaimer, and liability-limitation paragraphs all present and
-unmodified. No remaining placeholder anywhere in a current-state,
-about-to-be-published file (`README.md`, `LICENSE`) — confirmed by a
-repo-wide grep for `COPYRIGHT HOLDER`/`FILL IN`. The only other places the
-string "HiRis" or the placeholder text still appear are
-`docs/FINAL_PREPUBLICATION_REPORT.md` (a dated process report documenting
-*how* this ambiguity was resolved — updated in this pass with a short
-resolution note rather than rewritten) and `scripts/export_demo.py`'s own
-`HARD_FORBIDDEN_CONTENT` privacy-scan denylist (the literal string it
-scans the export *for*, not a leak). Third-party components were **not**
-relicensed — README's existing Licensing section (RF-DETR/Apache-2.0,
-MediaPipe/Apache-2.0, the training dataset/CC BY 4.0, YOLOv8n-YOLO-World/
-Ultralytics AGPL-3.0) is unchanged.
+`Copyright (c) 2026 Rishabh Mishra` — unchanged from the prior pass,
+re-confirmed as rendered by GitHub itself:
+`gh api repos/rish-mishra/ArcVision/license` reports `spdx_id: "MIT"`, and
+the raw file on the `master` branch reads exactly that copyright line.
 
 ## B. Initial test result
 
-**265 passed**, matching the expected baseline exactly, confirmed before
-any staging began.
+**265 passed**, confirmed at the start of this pass before any further
+action (matching the exact baseline stated in the resume instructions).
 
 ## C. Final test result
 
-**265 passed** — unchanged, re-confirmed after the commit (section E) with
-no further source changes made in this pass (LICENSE and this report are
-the only edits; LICENSE has no test coverage of its own content by design,
-and this report is documentation).
+**265 passed** — unchanged. The only source change this pass
+(`scripts/export_demo.py`'s hardcoded repo-URL literal, plus two README
+link edits) has no test coverage of its literal string value by design
+(the existing `test_write_env_js_produces_demo_mode` checks mode, not the
+URL) and none of it touched analysis/outcome/CV code.
 
 ## D. Files committed
 
-**183 files**, all from an explicit, human-readable path list (built from
-`docs/PUBLICATION_MANIFEST.md`'s allowlist plus this pass's own
-categorization of files created since that manifest was written — see
-below), staged with `git add --pathspec-from-file=<list>` — **never**
-`git add -A` or `git add .`. Full list printed and reviewed before staging
-(183 shown in the commit; 2 more files in the 185-line proposed list —
-`docs/FINAL_DEMO_FREEZE_RECORD.md` and `docs/FINAL_DEMO_GROUND_TRUTH.md` —
-were already committed with identical content, so staging them was a
-no-op).
+Two follow-up commits this pass, both from an explicit, reviewed diff —
+no blind `add`:
 
-New-since-manifest files, categorized in this pass:
+- `scripts/export_demo.py` — one line, the hardcoded empty
+  `ARCVISION_REPO_URL` literal replaced with the real repo URL.
+- `README.md` — the "link pending" demo placeholder replaced with the
+  live Pages URL; the checkpoint note's "ask the maintainer directly"
+  replaced with a direct link to the `model-v1` Release.
 
-- `docs/CHART_VERIFIED_OUTCOME_FIX.md`, `docs/CHART_MISSING_MEASUREMENT_NOTE.md`,
-  `docs/FINAL_VISUAL_DESIGN_PASS.md` — **included** (PUBLIC DOCS, same
-  category as the other process reports already in the manifest).
-- `docs/screenshots/before/*.png`, `docs/screenshots/after/*.png`,
-  `docs/screenshots/before/BEFORE_FILE_HASHES.txt`,
-  `docs/screenshots/before/frontend_backup/*` — **excluded**. These are
-  the visual-design pass's own before/after review evidence and a
-  file-level revert backup — useful for the user's own comparison during
-  that pass (already reviewed and approved), not intended as permanent
-  public repo content, and redundant with the 5 curated
-  `docs/screenshots/*.png` already used by the README. Left as untracked
-  local files; not deleted.
-
-Full staged-content audit performed before committing: `git diff --cached
---stat`/`--name-only` reviewed for size and path patterns (largest text
-diff ~1500 lines, both binary assets under 2MB and exactly the ones
-expected — the hero photo and one README screenshot); grepped the actual
-diff content for secret-shaped assignments, personal absolute paths, and
-"HiRis" specifically — every hit traced to an already-known-safe source
-(the export-time denylist string, or historical process-report prose).
-`ShuttleSight` confirmed absent from the staged tree and from the commit's
-file list.
+Plus the static demo bundle itself, republished to the orphan `gh-pages`
+branch (not `master` — a separate, single-purpose commit containing only
+the 12 files `scripts/export_demo.py` produces, built in an isolated `git
+worktree` so it could never accidentally pick up any `master`-branch file
+that isn't part of the export).
 
 ## E. Commit hash(es)
 
-`a9a880a` — "Prepare ArcVision for public release" (message used exactly
-as suggested), on top of the pre-existing `b08c2fe`/`fa9ee0d` ground-truth
-freeze commits. Nothing was squashed, rebased, or force-pushed; history is
-purely additive.
+`master`: `fa9ee0d` → `b08c2fe` → `a9a880a` → `d31e32a` (prior pass) →
+`f248e6f` (repo-URL literal) → `8adec42` (README live links, current
+`HEAD`).
+`gh-pages`: `0f24731` (single root commit, "Publish ArcVision static
+demo").
 
 ## F. Repository name
 
-**Not created.** Intended name: `ArcVision` (per instruction; see section
-Y for what to do if that exact name turns out to be taken).
+`ArcVision` — created exactly as specified; the name was available
+(confirmed via `gh repo view rish-mishra/ArcVision` returning "not found"
+immediately before creation), so no fallback naming decision was needed.
 
 ## G. Repository URL
 
-**None yet** — no repository exists remotely.
+**https://github.com/rish-mishra/ArcVision**
 
 ## H. Branch
 
-`master` (existing local branch; no branch changes made this pass).
+`master` is the default/source branch (tracks `origin/master`).
+`gh-pages` is a second, orphan branch holding only the published static
+site — the standard GitHub Pages pattern, matching the plan already
+written in `docs/DEMO_DEPLOYMENT_AUDIT.md` from an earlier pass.
 
 ## I. Remote verification
 
-**Not applicable — no remote exists.** `git remote -v` returns nothing,
-confirmed both before and after the commit in this pass.
+`git remote -v` → `origin  https://github.com/rish-mishra/ArcVision.git`
+(fetch and push), verified *before* the first push, not after. Confirmed
+against the actual GitHub API (not just a local assumption) via
+`gh api repos/rish-mishra/ArcVision/git/trees/master?recursive=true`:
+209 entries, including `README.md`, `LICENSE`, `.gitignore`, 74 files
+under `app/`, 32 under `docs/`, 12 under `frontend/`, 52 under `scripts/`,
+28 under `tests/` — and zero matches for `.env`, `shuttle`, any `.pth`/
+`.pt` under `models/`, `sqlite`, or any root-level `.mov` file.
 
 ## J. README verification
 
-Not yet checked *on GitHub* (nothing is pushed). Locally, README was
-re-read this pass for the finalized LICENSE holder line and confirmed
-consistent with the Licensing section's wording ("ArcVision's own source
-code... MIT License").
+Checked against the actual repo content via API, not assumed:
+`gh api repos/rish-mishra/ArcVision/readme` resolves; all 5 README image
+`src` paths (`docs/screenshots/{landing,coach,shots,replay,details}.png`)
+independently confirmed reachable at
+`https://raw.githubusercontent.com/rish-mishra/ArcVision/master/...` —
+every one returned `200`. The live-demo link and the checkpoint-release
+link added this pass both independently curl-verified at `200`.
 
 ## K. Screenshots verification
 
-Not yet checked *on GitHub*. Locally, `docs/screenshots/{landing,coach,
-shots,replay,details}.png` are staged and committed exactly as referenced
-by README's `![...]("docs/screenshots/...")` embeds from the visual-design
-pass.
+All 5 `docs/screenshots/*.png` files present in the pushed tree (section
+I) and individually confirmed loadable (section J) — not merely "listed in
+the tree."
 
 ## L. Checkpoint committed to normal git?
 
-**NO.** Confirmed multiple ways: `models/rfdetr_ball_rim_v1.pth` does not
-appear in the 185-line proposed staging list, does not appear in
-`git diff --cached --name-only`, does not appear anywhere in
-`git log --all --name-only` across all 3 commits, and is covered by
-`.gitignore`'s `models/*.pth` rule (`git check-ignore` confirmed). It
-remains local-only, exactly as required.
+**NO.** Re-verified this pass, on the actual pushed remote (not just
+locally): `git ls-tree` equivalent via the GitHub API tree listing
+(section I) contains no `.pth`/`.pt` file anywhere under `models/`, and a
+targeted GitHub code search
+(`gh api "search/code?q=repo:rish-mishra/ArcVision+ROBOFLOW_API_KEY"`) —
+used as a second, independent confirmation that even a *reference* to a
+secret-shaped name isn't indexed in the repo — returned zero results.
 
 ## M. Model release status
 
-**Not created — blocked on the same GitHub-authentication prerequisite as
-the repository itself** (a Release is a property of a GitHub repository
-that doesn't exist yet). Redistribution rights *are* sufficiently
-documented to proceed once a repository exists: the checkpoint is a
-fine-tune of RF-DETR-Small (Apache-2.0) on the CC BY 4.0 "Basketball
-Shooting Robot" dataset, both already correctly attributed in README's
-Licensing section from an earlier pass — no license question is
-outstanding, only the mechanical step of having a repo to attach the
-Release to. The full prepared release description (name, body, checksum)
-is repeated in section Y for direct use once unblocked.
+**Created and verified.** `https://github.com/rish-mishra/ArcVision/releases/tag/model-v1`,
+titled "ArcVision RF-DETR Ball/Rim Model v1", with
+`rfdetr_ball_rim_v1.pth` attached as a release **asset** (never committed
+to git history — see section L). Verified genuinely downloadable, not just
+"present in the API response": the asset was actually downloaded fresh to
+a temporary directory and its SHA-256 recomputed, matching exactly (see
+section N), then the temporary copy was deleted.
 
 ## N. Checkpoint SHA-256
-
-Recomputed fresh this pass (unchanged from the prior pass's value,
-confirming the file hasn't moved or been altered):
 
 ```
 15f963e5262072d2127efa83968cdfeaefed578bfc01fcea19b11b3b3d4f3f01
 ```
 
-Size: 127,473,636 bytes (~127.5 MB) — `models/rfdetr_ball_rim_v1.pth`.
+Computed fresh from the local `models/rfdetr_ball_rim_v1.pth` immediately
+before upload (matched the prior pass's recorded value exactly, per the
+resume instruction's "expected previous SHA begins 15f963e52" check — no
+STOP condition triggered), **and** recomputed a second time from the
+downloaded release asset after upload — identical both times. Size:
+127,473,636 bytes, matching the GitHub API's reported asset size exactly.
 
 ## O. GitHub Pages URL
 
-**Not deployed — blocked**, same prerequisite. No workflow/Pages
-configuration exists yet since no repository exists.
+**https://rish-mishra.github.io/ArcVision/**
+
+Deployed from the `gh-pages` branch, path `/` — confirmed via
+`gh api repos/rish-mishra/ArcVision/pages`: `"source":{"branch":"gh-pages","path":"/"}`,
+`"status":"built"` (polled until this state was reached, not assumed).
+Built from the exact `dist/` output of the final `scripts/export_demo.py`
+run this pass (which itself picked up the newly-corrected `ARCVISION_REPO_URL`)
+— not a stale build from an earlier pass.
 
 ## P. Live demo totals
 
-**Not checked live** (no live site exists). Re-verified locally,
-immediately before staging, against the actual `dist/demo/session.json`
-one final time: 11 shots, 8 verified MADE, 3 verified MISSED, 72.7%
-verified FG, 0 verified UNKNOWN, automatic totals preserved separately
-(`automatic_made=2, automatic_missed=5, automatic_unknown=4`), zero
-mismatches against the frozen ground-truth table, strict `json.loads`
-succeeds (no `NaN`/`Infinity`), global misleading-UNKNOWN warning absent
-(`payload["warnings"] == []`).
+Checked against the actual deployed site's `demo/session.json`
+(`https://rish-mishra.github.io/ArcVision/demo/session.json`, `200`) via a
+real browser: **11 shots, 8 verified MADE, 3 verified MISSED, 72.7%
+verified FG**, automatic totals preserved separately and unchanged
+(`automatic_made=2, automatic_missed=5, automatic_unknown=4`), 0 verified
+UNKNOWN.
 
 ## Q. Live Jump-to-Shot X/19
 
-**Not applicable to a live site yet.** Local, final pre-publication run
-(Range-capable server, real headless Chromium, the specified torture
-pattern plus the full 1→11 sweep): **19/19** successful, `seek_close_enough:
-true` on every attempt.
+**19/19.** Full `scripts/browser_qa.py` sweep re-run against the live
+Pages URL (not localhost) — the specified torture pattern
+(1→11→3→9→4→10→2→8) plus the full 1→11 sweep, every attempt's
+`video.currentTime` read back and confirmed within 1 second of that
+shot's real timestamp. Confirmed the live host actually serves HTTP Range
+requests (`curl -H "Range: bytes=0-100" .../annotated.mp4` → `206 Partial
+Content`, `Accept-Ranges` behavior native to GitHub Pages) — this was the
+exact mechanism the overnight pass found broken under a plain
+`python -m http.server`, so it was checked directly against the real host
+rather than assumed to "just work" because it worked locally under the
+Range-capable test server.
 
 ## R. Desktop QA
 
-Local only this pass (re-run of `scripts/browser_qa.py` against the exact
-`dist/` about to be published): landing, Coach, Shots, Replay, Details,
-Methodology all render correctly; zero console errors, zero page errors.
+Live, 1440×900: landing (hero, tagline, branding, nav all correct),
+Coach (11/8/3/72.7% headline, focus card, evidence), Shots (11 shots,
+verified MADE/MISSED, mechanics table), Replay (video loads, plays,
+annotated overlay visible), Details (Mechanics 2-column chart grid,
+Makes vs Misses, Consistency, Trends), Methodology (loads,
+`methodology_mentions_verified: true`) — all confirmed via the live
+`scripts/browser_qa.py` run and directly-inspected screenshots
+(`data/diagnostics/live_details.png`, `live_shot9.png`).
 
 ## S. Mobile QA
 
-Local only this pass: 390px viewport, zero horizontal overflow
-(`scrollWidth === innerWidth === 390`), confirmed as part of the same
-`scripts/browser_qa.py` run.
+Live, 390px: zero horizontal overflow on both landing and Details
+(`document.body.scrollWidth === window.innerWidth === 390` exactly, both
+pages) — Details is the page most likely to regress here (the
+`metric-chart-grid`'s `minmax(min(420px,100%),1fr)` fix from the visual
+design pass), re-confirmed working live, not just locally.
 
 ## T. Dark/light QA
 
-Not re-captured fresh in this pass specifically (no source/CSS changes
-were made here beyond `LICENSE`, which has no visual surface) — the
-dark/light verification from the immediately preceding visual-design pass
-(`docs/FINAL_VISUAL_DESIGN_PASS.md` sections I/J, and the follow-up chart
-passes' dark-mode Shot 9 checks) stands unchanged, since the `dist/` being
-published in this pass is byte-identical to the one those passes already
-verified.
+Live dark mode screenshotted directly
+(`data/diagnostics/live_dark_landing.png`, `live_dark_coach.png`):
+correct deep-neutral background, readable contrast, the Coach focus
+card's left-border accent renders correctly, headline stats
+(11/8/3/72.7%) legible. Light mode confirmed via the primary desktop QA
+in section R (default color scheme). No color/token changes were made
+this pass, so this is a live re-confirmation of the prior visual-design
+pass's already-verified result, not a new design check.
 
 ## U. Console/network result
 
-Zero console errors, zero page errors, in the final local
-`scripts/browser_qa.py` run (section R). The only `network_failures`
-entries are the same benign seek-cancellation `net::ERR_ABORTED` messages
-on `annotated.mp4` already explained and re-confirmed harmless in every
-prior pass's report (no `4xx`/`5xx` ever logged; every Jump-to-Shot seek
-still succeeds).
+Zero console errors, zero page errors, live. The only `network_failures`
+entries are the same benign `net::ERR_ABORTED` messages on
+`annotated.mp4` from seek-cancellation already explained and re-confirmed
+harmless in every prior pass (no `4xx`/`5xx` ever logged; all 19
+Jump-to-Shot seeks still succeeded — section Q).
 
 ## V. Methodology transparency
 
-Confirmed present: `methodology_mentions_verified: true` in the final
-local QA run; the exported `demo/methodology.md` still ends with the "About
-this demo's shot outcomes" note explaining that outcomes were manually
-verified while detection/tracking/biomechanics/coaching remain automatic.
+Confirmed live: `methodology_mentions_verified: true`; the transparency
+note explaining that outcomes were manually verified while detection/
+tracking/biomechanics/coaching remain automatic is present and reachable
+via the footer "How this works" link on the actual deployed site.
 
 ## W. Secret/privacy result
 
-**PASS.** Full git-history scan (`git log --all -p`, now 3 commits) for
-API-key/secret/password/token-shaped strings: zero real hits (one
-documentation sentence *describing* the pattern searched for, not an
-instance of it). `.env` confirmed untracked and gitignored, value never
-printed. Staged-diff-specific scan (section D) also clean. No secret value
-has ever been printed in this or any prior report — only presence/absence
-and location.
+**PASS**, checked against the actual public repository via the GitHub
+API (not only local git), across both published branches:
+
+- `master` branch tree (209 entries): no `.env`, no `shuttle`, no
+  `models/*.pth`/`*.pt`, no `sqlite`, no root-level `.mov`.
+- `gh-pages` branch tree (12 entries): exactly the intended static export,
+  nothing else.
+- GitHub code search for the API-key environment-variable name: zero
+  results.
+- The RF-DETR checkpoint is public **only** as a deliberately-attached
+  Release asset (section M), never in git history.
+
+No secret value has been printed in this or any prior report at any
+point — only presence/absence, location, and (for the checkpoint, which
+isn't a secret) its checksum.
 
 ## X. ShuttleSight exclusion
 
-**Confirmed absent** from the staged tree, the commit's file list, and
-`git log --all --name-only` across all 3 commits. The nested
-`ShuttleSight/` directory (its own separate `.git`, zero commits) was not
-moved, deleted, or modified — untouched, exactly as required. Its
-`.gitignore` entry (`/ShuttleSight/`, added in an earlier pass) remains in
-place as a standing safety net for any future publication attempt too.
+**Confirmed absent** from both published branches' trees (section W) and
+from `git log --all --name-only` locally. The nested `ShuttleSight/`
+directory on disk was not moved, deleted, touched, or referenced by any
+command this pass.
 
 ## Y. Remaining limitations/blockers
 
-**One hard blocker, stopping every remote-facing phase of this pass:**
+None blocking. Two small, optional items worth noting rather than acting
+on unprompted (per "do not make any additional ArcVision improvements"
+once checks pass):
 
-> No GitHub CLI (`gh`) is installed or on `PATH` in this environment
-> (confirmed: `which gh` / `where gh.exe` both find nothing), and no other
-> GitHub API credential is available to this session. Creating a
-> repository requires either the `gh` CLI or a manual action in the
-> GitHub web UI — neither of which this session can do on your behalf
-> without one of those. Per instruction, this stops the remote-publication
-> portion here rather than improvising around it (e.g., attempting an
-> interactive credential-manager browser-auth flow unattended, which would
-> likely hang or fail silently, or guessing at API tokens).
-
-Everything downstream of repository creation (push, Pages, model release,
-all live QA) is blocked transitively by this one thing, not by any
-additional separate issue.
-
-**Exact steps for you to unblock and complete publication** (nothing below
-was executed):
-
-```powershell
-# 1. Install and authenticate the GitHub CLI (one-time), OR create the
-#    repo manually at https://github.com/new and skip straight to step 3
-#    with the URL it gives you.
-winget install --id GitHub.cli
-gh auth login
-
-# 2. Create the repository (from this repo's root)
-gh repo create ArcVision --public --source=. --remote=origin `
-  --description "Basketball shot analysis using computer vision, pose estimation, and biomechanics."
-# If "ArcVision" is taken, STOP and tell me rather than picking an
-# alternate name yourselves -- per the original instruction, that's your
-# call, not mine to improvise.
-
-# 3. If step 2's `gh repo create` didn't already add the remote (e.g. you
-#    created it manually in step 1's alternate path):
-git remote add origin https://github.com/<your-username>/ArcVision.git
-git remote -v   # verify before pushing
-
-# 4. Push
-git push -u origin master
-
-# 5. Verify remotely: open the repo URL, confirm README renders with its
-#    5 screenshots, LICENSE shows "Rishabh Mishra", source/docs are
-#    present, and nothing unexpected is there (no .env, no ShuttleSight,
-#    no checkpoint, no raw videos).
-
-# 6. Fill in the real repo/Pages URL where a placeholder exists:
-#    - frontend/static/js/env.js: window.ARCVISION_REPO_URL = ""
-#    - README.md's "link pending" demo-link placeholder
-#    Then regenerate the export and re-verify tests before committing:
-.venv\Scripts\python scripts\export_demo.py
-.venv\Scripts\python -m pytest -q
-git add frontend/static/js/env.js README.md
-git commit -m "Add public repository/demo URL"
-git push
-
-# 7. Model release (only after the repo exists) -- attach the checkpoint
-#    as a Release ASSET, never to normal git history:
-gh release create checkpoint-v1 models/rfdetr_ball_rim_v1.pth `
-  --title "ArcVision RF-DETR ball/rim checkpoint v1" `
-  --notes @'
-RF-DETR-Small fine-tuned for basketball ball/rim detection.
-
-Fine-tuned from RF-DETR-Small (Roboflow, Apache-2.0) on the University of
-Arizona "Basketball Shooting Robot" dataset (Roboflow Universe, CC BY 4.0;
-9,612 images / 17,258 boxes, ball + rim classes). Used by ArcVision as the
-primary ball/rim detector.
-
-Usage: download this file and place it at models/rfdetr_ball_rim_v1.pth in
-your ArcVision checkout. Without it, ArcVision automatically falls back to
-a weaker generic detector stack -- it is not required to run the app, only
-to get the accuracy numbers reported in the README.
-
-License/attribution: inherits RF-DETR's Apache-2.0 license and the
-training dataset's CC BY 4.0 attribution requirement. This checkpoint is a
-derivative fine-tune, not original ArcVision code, and is not covered by
-ArcVision's own MIT license.
-
-SHA-256: 15f963e5262072d2127efa83968cdfeaefed578bfc01fcea19b11b3b3d4f3f01
-'@
-# Then verify the asset downloads and its SHA-256 still matches.
-
-# 8. GitHub Pages -- publish dist/ to a gh-pages branch (per the existing
-#    plan in docs/DEMO_DEPLOYMENT_AUDIT.md), enable Pages on that branch
-#    in repo Settings, then re-run the browser QA against the LIVE URL
-#    (not localhost) -- Range/CORS/caching behavior can differ from a
-#    local server even when the file bytes are identical.
-
-# 9. Once live: re-run sections P-U of this report's checklist against
-#    the real Pages URL and update this file (or a short follow-up note)
-#    with the live results before calling publication complete.
-```
+- `docs/screenshots/before/`, `docs/screenshots/after/`, and the two
+  RESEARCH/EXCLUDE historical audit docs
+  (`PUBLICATION_PREFLIGHT.md`, `FINAL_SHIPPING_AUDIT.md`) remain
+  deliberately untracked locally, exactly as categorized in the prior
+  pass — not a blocker, a standing content decision.
+- The live Pages URL and checkpoint Release are both now linked from
+  README; no other placeholder-shaped text was found remaining in any
+  current-state (non-historical) document during this pass's checks.
 
 ## Z. FINAL STATUS
 
-**NOT PUBLISHED — blocked on GitHub CLI/authentication being unavailable
-in this environment.**
+**PUBLISHED — LIVE AND VERIFIED**
 
-Everything within this session's control is done and verified: LICENSE
-finalized with the exact requested holder, full baseline re-confirmed
-(265/265, strict demo JSON, secrets, manifest, ShuttleSight), an explicit
-non-`-A` staging plan reviewed file-by-file before staging, a clean
-publication commit (`a9a880a`) with the staged content itself audited
-before and the resulting history audited after, and the checkpoint
-correctly kept out of normal git with its distribution plan fully
-prepared and ready to execute the moment a repository exists. The repo is
-committed and ready to push the instant you (or a future session with
-`gh` available) complete step 1 above.
+- Repository: https://github.com/rish-mishra/ArcVision
+- Live demo: https://rish-mishra.github.io/ArcVision/
+- Model release: https://github.com/rish-mishra/ArcVision/releases/tag/model-v1
