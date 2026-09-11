@@ -23,8 +23,7 @@ rather than quietly re-tuning to pass it (see "Evaluation & Limitations" below).
 
 ## Try it
 
-- **Public interactive demo** — *[link pending — added once deployed; see
-  `docs/DEMO_DEPLOYMENT_AUDIT.md` for the full plan]*. Click through a real, already-analyzed
+- **[Public interactive demo](https://rish-mishra.github.io/ArcVision/)**. Click through a real, already-analyzed
   session — Coach, Shots, Replay, and Details are all fully interactive — with no install, no
   GPU, and no upload. It's a genuine ArcVision output (the real RF-DETR + pose + biomechanics
   pipeline, run once, ahead of time), not sample or fabricated data. Hosted for $0 as a static
@@ -179,8 +178,10 @@ basketball-specific RF-DETR model described below, ~127MB) is not included in th
 repository — it's gitignored along with everything else under `models/` and `data/`. Without
 it, the app still runs, but automatically falls back to the generic YOLOv8/YOLO-World/
 classical-CV detector stack (see "Ball + hoop detection (fallback)" below), which is
-noticeably weaker near the rim. See `docs/METHODOLOGY.md` → "Retraining / replacing the
-model" to reproduce the checkpoint, or ask the maintainer for the trained weights directly.
+noticeably weaker near the rim. Download it from the
+[`model-v1` release](https://github.com/rish-mishra/ArcVision/releases/tag/model-v1) and place
+it at `models/rfdetr_ball_rim_v1.pth`, or see `docs/METHODOLOGY.md` → "Retraining / replacing
+the model" to reproduce it yourself.
 
 ## Running the app
 
