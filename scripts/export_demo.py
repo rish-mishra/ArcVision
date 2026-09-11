@@ -192,7 +192,7 @@ def _write_env_js(output_dir: Path) -> None:
     env_js_path.parent.mkdir(parents=True, exist_ok=True)
     env_js_path.write_text(
         'window.ARCVISION_MODE = "demo";\n'
-        'window.ARCVISION_REPO_URL = ""; // fill in once the public repo URL is known\n',
+        'window.ARCVISION_REPO_URL = "https://github.com/rish-mishra/ArcVision";\n',
         encoding="utf-8",
     )
     _assert_env_js_is_demo_mode(env_js_path.read_text(encoding="utf-8"))
