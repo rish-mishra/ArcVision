@@ -4,10 +4,10 @@ Computer vision for understanding basketball shooting mechanics, shot by shot.
 
 ArcVision tracks the ball, hoop, and shooter across a video, finds every shot attempt, measures
 each shot's release and mechanics, and compares makes to misses to surface real, measured
-patterns — not a generic "form score." Under the hood: a basketball-specific object detector
-fine-tuned from RF-DETR, MediaPipe pose estimation, a custom Kalman tracker, an explicit
-finite-state-machine shot segmenter, and a phase-based outcome classifier, feeding a
-deterministic (not LLM-generated) coaching layer.
+patterns — not a generic "form score." The pipeline behind it is a basketball-specific object
+detector fine-tuned from RF-DETR, MediaPipe pose estimation, a custom Kalman tracker, and an
+explicit finite-state-machine shot segmenter feeding a phase-based outcome classifier — the
+coaching layer on top is deterministic, not an LLM writing generic advice.
 
 Running ArcVision on your own footage happens **entirely locally** — no video is ever uploaded
 to any third-party service.
@@ -73,6 +73,17 @@ VIDEO INPUT → VALIDATION → PERSON/POSE → BALL DETECTION → HOOP DETECTION
 
 The full per-layer breakdown — exact files, approach, and why each library was chosen — is in
 "Architecture" below.
+
+## Why I built this
+
+I wanted to see how much you could learn about a basketball shot from an ordinary phone video,
+without any special cameras or sensors. The project started as a smaller pose-analysis
+experiment and grew into a full computer-vision pipeline once it became clear that reliably
+detecting the ball and hoop was its own hard problem, separate from tracking the shooter. What
+mattered most to me wasn't getting one demo video to look good — it was whether the same
+pipeline still worked on a different recording, with a different camera angle and a shooter the
+system hadn't seen before. That's most of why the architecture ended up frozen and tested blind
+on a video with zero influence on its own development (see "Evaluation & Limitations" below).
 
 ## What this is not
 
@@ -279,93 +290,29 @@ data/             uploads, per-session outputs, SQLite DB, logs, datasets, train
 
 ## Real-footage calibration status
 
-The first real test video (`real_test_01`, a residential driveway hoop, ~52s, one shooter)
-surfaced and led to fixing four real bugs, each with regression tests:
+Testing on real video, not just synthetic test cases, is what actually found the interesting
+bugs. The first real clip broke the hoop detector completely — it assumed a bright orange rim,
+and this rim was dark, weathered metal against a bright sky — and showed that COCO's generic
+"sports ball" class barely notices a real, often hand-occluded ball (recall around 3%). Both got
+real fixes (an open-vocabulary detector as a second candidate source, not a threshold tweak),
+each backed by a regression test. The shot state machine went through a similar process: its
+first version could miss real shots or, worse, mistake a rim rebound or a bystander dribbling
+past the hoop for a shot attempt. What actually separated a genuine shot from those false
+positives — timing, direction of motion, whether the shooter was standing still — is worked out
+in detail in `docs/METHODOLOGY.md`, along with the redesign of the outcome detector to require
+real evidence for both MADE and MISSED instead of guessing by default.
 
-1. **Hoop detection failed completely** — the classical color-mask detector assumes a
-   bright-orange rim; this rim was dark, weathered metal against a bright sky, producing zero
-   color-mask pixels for the whole session. Fixed by adding YOLO-World (open-vocabulary,
-   prompted as "basketball hoop/rim/backboard/net") as a second candidate source, and by fixing
-   a real bug in the cross-frame aggregator that counted raw candidate boxes rather than
-   distinct frames as "votes" (letting a moving false positive nearly outscore the true,
-   repeatedly-observed hoop). **Confirmed working** on the real video with no manual coordinates.
-2. **Basketball detection recall was ~3%** — COCO's generic "sports ball" class barely detects
-   a real, often hand-occluded ball at typical recreational-court distance. Fixed by adding
-   YOLO-World prompted as "basketball" as a second candidate source (recall roughly
-   quadrupled). Still has a real, unresolved gap immediately around the hoop/backboard
-   (motion blur + visual clutter) — see Known Limitations in the methodology doc.
-3. **The shot state machine required continuous ball-hand tracking to ever start a shot** —
-   fragile given (2). Fixed with a fallback trigger that recognizes a confirmed upward ball
-   flight as a release-in-progress on its own, reconstructing the load phase from pose alone.
-4. **Flight windows closed prematurely** — "ball not detected" was being treated as "ball
-   retrieved," closing shot windows before the ball had traveled anywhere near the hoop. Fixed
-   with a confirmed-vs-unresolved distinction and a physically-motivated blackout budget.
+Swapping in the fine-tuned RF-DETR detector later re-surfaced one more latent bug: a
+knee-angle check that looked at how much a joint moved but not which direction, so a shooter
+un-bending their knees while just picking up the ball could look like the start of a shot. Also
+fixed, also with a regression test — see `app/events/shot_state_machine.py` and
+`docs/METHODOLOGY.md` for the full history of what broke and why.
 
-**Resolved in a later pass:** the outcome detector's original MISS branch didn't verify a genuine
-apex-then-descent pattern and could be satisfied by an ordinary post-catch ball position; every
-shot on the real video used to resolve to it with an identical confidence. `app/events/outcome_detector.py`
-was fully redesigned around explicit phase reasoning (RELEASE→ASCENT→APEX→DESCENT→HOOP
-APPROACH→RIM INTERACTION→POST-RIM MOTION) requiring positive evidence for both MADE and MISSED,
-with UNKNOWN as a first-class outcome rather than a fallback to minimize — see
-`docs/METHODOLOGY.md` → "Make / miss / unknown."
-
-**Second calibration pass — shot-segmentation false positives.** With the ground truth that the
-real video contained exactly 7 shot attempts, the pipeline's 9 detections were traced frame by
-frame (`scripts/shot_timeline_debug.py`) and matched against the real footage. Both extra
-detections turned out to share the root cause above: "ball moving up fast" is not a shot
-signature on its own, and neither is "the ball moved up AND the knee bent" —
-
-- **False positive #1: a rim rebound.** After a miss, the ball bounced back upward past
-  shoulder height while the shooter stood still watching it -- exactly the fallback trigger's
-  signature, with no real load. It passed a first knee-flexion-drop fix because the lookback
-  window reached back far enough to "borrow" the *previous* shot's own genuine dip. Fixed by
-  bounding the lookback to never cross into the previous shot's window.
-- **False positive #2: a different player dribbling while walking toward the hoop.** Ordinary
-  gait produced a *real* (not noise) knee-flexion dip large enough to pass the fix above on its
-  own. What actually distinguished it from every genuine shot checked was gross horizontal hip
-  translation (walking across most of the frame vs. a fraction of one torso-length for every
-  real shot) -- shooting is done from a stationary base. Fixed by adding that as an additional,
-  independent requirement.
-
-A related, secondary finding: pose estimation produced a couple of isolated ~50-80° knee-angle
-readings during a moment two people's poses overlapped in frame -- almost certainly noise, not a
-real squat -- which was enough to spuriously satisfy the flexion-drop check on its own before a
-biomechanical plausibility floor was added to filter it.
-
-**Result: exactly 7 shots detected, and all 7 release timestamps were independently verified by
-eye against the source video** (release frames were pulled and visually inspected one by one --
-see the session transcript, not merely re-derived from the target count). Nine new regression
-tests cover these exact failure modes (rebound, walking dribble, catch-after-miss, intermittent
-detection, predicted-only ball motion, temporary false detection, duplicate release candidates,
-raising the ball without shooting, consecutive real shots around a rebound) plus the four from
-the first pass; 74/74 automated tests pass **at this point in the project's history** (218
-pass today — see "Running tests" above; the rest were added by later work below).
-
-**Third calibration pass — basketball-specific detector upgrade.** Full A/B benchmark of a
-fine-tuned RF-DETR detector against the generic YOLOv8/YOLO-World/classical-CV stack (see
-"Basketball-specific detector" above and `docs/METHODOLOGY.md` → "Detector architecture" for
-the complete story). Re-running the real video with the new detector as primary initially
-produced 8 shots instead of the validated 7 — investigated, not tuned around: a genuine,
-previously-latent bug in the shot state machine's knee-flexion-drop check (`app/events/shot_state_machine.py`),
-which only checked the RANGE of knee angle in a lookback window with no regard for direction.
-The video's own first frames caught the shooter mid-motion, knees already bent, simply
-straightening as they picked up the ball — a large range, but running backwards, not a real
-shooting load. This was invisible under the old, sparser detector and became reachable once
-denser tracking made the trigger fire more reliably. Fixed by requiring the window's minimum
-to have a genuinely higher, extended value strictly *before* it; re-verified result: 7 shots,
-release timestamps within ~1s of the original detector stack's. Also added: a rough,
-rim-depth-only ball-speed estimate for MADE shots using the regulation rim's known 18in inner
-diameter as a single calibration reference (see `docs/METHODOLOGY.md` → "Physical-unit
-calibration" for exactly what is and is not defensible from a single reference).
-
-Recording guidance for further calibration clips remains: phone on a tripod or stable surface,
-15–25 feet from the hoop at a side/side-front angle, shooter and hoop both in frame the whole
-time, 8–15 consecutive shots (mix of makes and misses), normal lighting, 20–60 seconds. Run
-`scripts/diagnose_video.py` against any new clip and treat mismatches as concrete bugs to fix
-with a regression test, not a reason to blindly retune thresholds. RF-DETR was benchmarked on
-one real video from one camera/lighting setup — re-run `scripts/benchmark_ball_rim_detectors.py`
-and `scripts/visual_benchmark_frames.py` against any materially different footage (indoor gym,
-different rim/net design, different camera angle) before trusting its results there.
+Recording guidance for new calibration clips is the same as above: run
+`scripts/diagnose_video.py` on any new clip and treat a mismatch as a bug to fix with a
+regression test, not a reason to retune thresholds blindly. RF-DETR itself has only been
+benchmarked on one camera/lighting setup — re-run `scripts/benchmark_ball_rim_detectors.py`
+before trusting its results on materially different footage.
 
 ## Evaluation & Limitations
 
