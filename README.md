@@ -1,43 +1,78 @@
 # ArcVision
 
-A computer-vision basketball shot analysis tool that answers one question: **what's
-different about *your* good shots and *your* bad shots?**
+Computer vision for understanding basketball shooting mechanics, shot by shot.
 
-Upload a shooting session, and ArcVision automatically finds every shot attempt, tracks the
-shooter's pose, the basketball, and the hoop, detects each release, classifies makes/misses
-where the evidence is strong enough, measures shooting mechanics, and compares your own makes
-to your own misses to surface real, measured patterns — not a generic "form score."
+ArcVision tracks the ball, hoop, and shooter across a video, finds every shot attempt, measures
+each shot's release and mechanics, and compares makes to misses to surface real, measured
+patterns — not a generic "form score." Under the hood: a basketball-specific object detector
+fine-tuned from RF-DETR, MediaPipe pose estimation, a custom Kalman tracker, an explicit
+finite-state-machine shot segmenter, and a phase-based outcome classifier, feeding a
+deterministic (not LLM-generated) coaching layer.
 
 Running ArcVision on your own footage happens **entirely locally** — no video is ever uploaded
-to any third-party service. The public demo described below is a separate, static, read-only
-showcase of one already-analyzed session; it never accepts an upload either.
+to any third-party service.
 
-**Built with:** a basketball-specific object detector ([RF-DETR](https://github.com/roboflow/rf-detr),
-fine-tuned on 9,612 labeled frames), MediaPipe pose estimation, a custom Kalman tracker, and an
-explicit finite-state-machine shot segmenter feeding a phase-based (not single-frame) make/miss
-classifier — FastAPI backend, build-tool-free vanilla-JS frontend. What makes it more than a
-model wrapper: the detector was benchmarked against the generic COCO stack it replaced (near-rim
-ball coverage ~0% → ~90%+), and the whole frozen architecture was then blind-tested against a
-video with zero influence on its own development — including reporting where that test failed
-rather than quietly re-tuning to pass it (see "Evaluation & Limitations" below).
+## Live demo
 
-## Try it
+**[rish-mishra.github.io/ArcVision](https://rish-mishra.github.io/ArcVision/)**
 
-- **[Public interactive demo](https://rish-mishra.github.io/ArcVision/)**. Click through a real, already-analyzed
-  session — Coach, Shots, Replay, and Details are all fully interactive — with no install, no
-  GPU, and no upload. It's a genuine ArcVision output (the real RF-DETR + pose + biomechanics
-  pipeline, run once, ahead of time), not sample or fabricated data. Hosted for $0 as a static
-  site precisely *because* it's precomputed — see the note in the demo itself for exactly what
-  that means.
-- **Full local application** — clone this repo and analyze your own footage with the real,
-  live pipeline. See "Windows installation" below.
+A real, already-analyzed session — Coach, Shots, Replay, and Details are all interactive, with
+no install, no GPU, no upload. Detection, tracking, biomechanics, and coaching are the real
+pipeline's output, run once ahead of time so the demo can be hosted for $0 as a static site.
+
+**One thing is different in this demo:** its make/miss outcomes were manually verified against
+the source video, so the interface can be explored against a known-correct result. The automatic
+classifier's own prediction is still shown for every shot, as secondary information — not
+hidden, just not the headline number (see "Evaluation & Limitations" below for how that
+classifier performs on video it wasn't tuned on).
 
 | | Public demo | Local application |
 |---|---|---|
-| What it shows | One real, precomputed ArcVision session | Your own video, analyzed live |
+| What it shows | One real, precomputed session, verified outcomes | Your own video, analyzed live, automatic outcomes |
 | Upload | Not available (static hosting, no backend) | Full upload → analysis → results |
 | Cost to run | $0, nothing to install | Free, but needs Python and this repo locally |
 | RF-DETR / GPU | Not needed — nothing runs live | Runs the real fine-tuned detector |
+
+To analyze your own footage, clone this repo and run it locally — see "Windows installation"
+below.
+
+## Screenshots
+
+All captured from the real, precomputed public demo session — not sample or fabricated data.
+
+![Landing page](docs/screenshots/landing.png)
+![Coach tab: headline stats and coaching narrative](docs/screenshots/coach.png)
+![Shots tab: per-shot outcome, confidence badges, and biomechanics detail](docs/screenshots/shots.png)
+![Replay tab: annotated video with pose/ball/hoop overlays and a per-shot jump list](docs/screenshots/replay.png)
+![Details tab: mechanics charted per shot, colored by outcome](docs/screenshots/details.png)
+
+## Engineering highlights
+
+- Basketball-specific object detector: RF-DETR-Small fine-tuned on 9,612 labeled images
+  (17,258 `ball`/`rim` boxes) — mAP50 ≈0.97 on the validation set.
+- That fine-tune was benchmarked, not just trained: near-rim ball-detection coverage went from
+  ~0% (the generic YOLOv8/COCO stack it replaced) to ~90%+ of frames, and rim positional
+  stability improved ~6.6×.
+- MediaPipe pose estimation, a custom Kalman tracker, and an explicit finite-state-machine shot
+  segmenter (LOAD → UPWARD → RELEASED → FLIGHT) — not a single-frame heuristic.
+- Architecture frozen, then blind-tested exactly once against unseen footage with ground truth
+  committed to git before the pipeline ever ran on it: shot detection matched 18/18 real shots;
+  outcome classification fell short of its precommitted bar and is reported as a documented
+  limitation, not patched to pass (see "Evaluation & Limitations" below).
+- 265-test regression suite — unit, synthetic integration, and API tests, including one real
+  end-to-end run of the actual CV models against a synthetic video.
+
+## How it works
+
+```
+VIDEO INPUT → VALIDATION → PERSON/POSE → BALL DETECTION → HOOP DETECTION → TRACKING
+  → SHOT SEGMENTATION → RELEASE DETECTION → OUTCOME DETECTION → BIOMECHANICS
+  → SESSION ANALYTICS (consistency / makes-vs-misses / trends / feedback)
+  → ANNOTATED VIDEO → WEB DASHBOARD
+```
+
+The full per-layer breakdown — exact files, approach, and why each library was chosen — is in
+"Architecture" below.
 
 ## What this is not
 
@@ -50,18 +85,7 @@ rather than quietly re-tuning to pass it (see "Evaluation & Limitations" below).
 
 See `docs/METHODOLOGY.md` for exactly how every number is computed, its coordinate system
 (image-space / body-relative / angular — never a fabricated physical unit), and its
-limitations. See "Evaluation & Limitations" below for how this pipeline actually performed on
-a video with no influence over its own development.
-
-## Screenshots
-
-All captured from the real, precomputed public demo session — not sample or fabricated data.
-
-![Landing page](docs/screenshots/landing.png)
-![Coach tab: headline stats and coaching narrative](docs/screenshots/coach.png)
-![Shots tab: per-shot outcome, confidence badges, and biomechanics detail](docs/screenshots/shots.png)
-![Replay tab: annotated video with pose/ball/hoop overlays and a per-shot jump list](docs/screenshots/replay.png)
-![Details tab: mechanics charted per shot, colored by outcome](docs/screenshots/details.png)
+limitations.
 
 ## Recommended recording setup (V1)
 
@@ -75,13 +99,6 @@ All captured from the real, precomputed public demo session — not sample or fa
 - MP4 or MOV, 1.5–300 seconds, up to 500MB.
 
 ## Architecture
-
-```
-VIDEO INPUT → VALIDATION → PERSON/POSE → BALL DETECTION → HOOP DETECTION → TRACKING
-  → SHOT SEGMENTATION → RELEASE DETECTION → OUTCOME DETECTION → BIOMECHANICS
-  → SESSION ANALYTICS (consistency / makes-vs-misses / trends / feedback)
-  → ANNOTATED VIDEO → WEB DASHBOARD
-```
 
 | Layer | Location | Approach |
 |---|---|---|
@@ -145,6 +162,8 @@ most. It was replaced as the **primary** ball/rim source by a basketball-specifi
 - **Dataset**: University of Arizona ["Basketball Shooting
   Robot"](https://universe.roboflow.com/the-university-of-arizona-th1yv/basketball-shooting-robot)
   (Roboflow Universe), **CC BY 4.0**. 9,612 images / 17,258 boxes, `ball` + `rim` classes.
+- **Validation metrics** (epoch 9, best checkpoint): mAP50 ≈0.97, ball F1 ≈0.94, rim F1 ≈0.98 —
+  see `docs/METHODOLOGY.md` → "Detector architecture" for the full precision/recall breakdown.
 - **Result** (A/B benchmarked against the full generic stack on real footage, not just
   validation metrics): near-rim ball detection coverage went from ~0% to ~90%+ of frames, rim
   positional stability improved ~6.6×, and it's *faster* (38.9 vs 28.0 fps) despite replacing
