@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArcVision</title>
+  <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+  <link rel="stylesheet" href="static/css/main.css">
+  <!-- Relative paths throughout this file on purpose (not /static/...) --
+       this same index.html is served both at a domain root (local FastAPI)
+       and from a GitHub Pages *project* subpath (e.g. user.github.io/arcvision/)
+       for the public demo, where an absolute /static/... path would resolve
+       to the wrong origin-root location. -->
+  <script src="static/js/env.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28">
+            <circle cx="20" cy="13" r="6.5" fill="none" stroke="var(--brand)" stroke-width="2.6"/>
+            <path d="M4 24 C 8 10, 15 3, 20.5 12.5" fill="none" stroke="var(--accent-2)" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="4" cy="24" r="2.4" fill="var(--accent-2)"/>
+          </svg>
+        </span>
+        ArcVision
+        <span class="tagline">See what your shot is really doing.</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="active-job-indicator" id="active-job-indicator" type="button" style="display:none;">
+          <span class="active-job-dot" id="active-job-dot"></span>
+          <span id="active-job-text">Analyzing session</span>
+        </button>
+        <button class="tab-btn" id="nav-history" style="color:var(--text-secondary)">History</button>
+        <div class="privacy-pill" id="privacy-pill">Processed locally on this machine</div>
+      </div>
+    </div>
+
+    <!-- LANDING / UPLOAD -->
+    <section class="view active" id="view-landing">
+      <div class="container">
+        <div class="hero">
+          <!-- Cinematic background photo: frontend/static/images/hero-basketball.png,
+               an approved ArcVision-style shot -- pose keypoints, ball
+               trajectory, and hoop detection overlaid on a real driveway
+               shot. Rendered as a background-image layer in main.css's
+               .hero-photo rule via a path RELATIVE to main.css (never
+               /static/... -- that resolves to the wrong origin on the
+               GitHub Pages project-subpath demo), so it's exported to
+               dist/ by scripts/export_demo.py exactly like the rest of
+               the frontend. Never replace this with generated or scraped
+               imagery. -->
+          <div class="hero-photo" aria-hidden="true"></div>
+          <div class="hero-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="64" height="64">
+              <circle cx="20" cy="13" r="6.5" fill="none" stroke="var(--brand)" stroke-width="2.2"/>
+              <path d="M4 24 C 8 10, 15 3, 20.5 12.5" fill="none" stroke="var(--accent-2)" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="4" cy="24" r="2.3" fill="var(--accent-2)"/>
+            </svg>
+          </div>
+          <h1>What's different about YOUR good shots and bad shots?</h1>
+          <p class="lede">Upload a shooting session and ArcVision will find every attempt, track the ball and hoop,
+            detect makes and misses where it can confidently tell, and compare your own mechanics on makes vs.
+            misses &mdash; no generic scores, no invented stats.</p>
+          <div class="demo-cta" id="demo-cta" style="display:none;">
+            <button class="btn btn-demo" id="try-demo-btn" type="button">Try Interactive Demo</button>
+            <div class="demo-cta-caption">Real ArcVision analysis, precomputed &mdash; no upload or GPU required.</div>
+          </div>
+        </div>
+
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept=".mp4,.mov,.m4v,.avi">
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 15V4"/>
+              <path d="M7 8l5-5 5 5"/>
+              <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+            </svg>
+          </div>
+          <div><strong>Drag and drop your video here</strong>, or click to choose a file</div>
+          <div class="hint">MP4 or MOV &middot; up to 500MB &middot; 1.5&ndash;300 seconds</div>
+          <button class="btn" type="button">Choose video</button>
+        </div>
+        <div class="upload-error" id="upload-error" role="alert"></div>
+        <!-- Demo-mode-only replacement for the dropzone above (hidden by JS
+             when ARCVISION_MODE === "demo", see initDemoMode() in app.js) --
+             non-interactive on purpose, since the public demo can't process
+             an arbitrary upload. Untouched, unaffected in local mode. -->
+        <div class="demo-upload-notice" id="demo-upload-notice" style="display:none;">
+          <h3>Analyze your own footage</h3>
+          <p>Full video analysis runs locally using ArcVision's computer-vision pipeline.</p>
+          <div class="demo-upload-actions" id="demo-upload-actions"></div>
+        </div>
+
+        <div class="recording-tips">
+          <div class="tip-card">
+            <div class="tip-icon tip-icon-brand" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="6" y="3" width="12" height="8" rx="2"/>
+                <circle cx="12" cy="7" r="2"/>
+                <path d="M12 11v5"/>
+                <path d="M12 16l-6 5"/>
+                <path d="M12 16l6 5"/>
+                <path d="M12 16v5"/>
+              </svg>
+            </div>
+            <div class="tip-title">Camera placement</div>Set your phone on a stationary
+            surface or tripod to the side or side-front of the court, roughly 20&ndash;30 ft back.</div>
+          <div class="tip-card">
+            <div class="tip-icon tip-icon-accent" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 9V6a2 2 0 0 1 2-2h3"/>
+                <path d="M20 9V6a2 2 0 0 0-2-2h-3"/>
+                <path d="M4 15v3a2 2 0 0 0 2 2h3"/>
+                <path d="M20 15v3a2 2 0 0 1-2 2h-3"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </div>
+            <div class="tip-title">Keep both in view</div>Frame the shot so the shooter AND
+            the hoop are visible together whenever possible &mdash; this is required for make/miss detection.</div>
+          <div class="tip-card">
+            <div class="tip-icon tip-icon-brand" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 3v2"/><path d="M12 19v2"/>
+                <path d="M4.2 4.2l1.4 1.4"/><path d="M18.4 18.4l1.4 1.4"/>
+                <path d="M3 12h2"/><path d="M19 12h2"/>
+                <path d="M4.2 19.8l1.4-1.4"/><path d="M18.4 5.6l1.4-1.4"/>
+              </svg>
+            </div>
+            <div class="tip-title">Lighting &amp; motion</div>Avoid strong backlighting, and
+            keep the camera still. Take several consecutive shots in one clip.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROCESSING -->
+    <section class="view" id="view-processing">
+      <div class="processing-wrap">
+        <div class="processing-visual" aria-hidden="true">
+          <svg viewBox="0 0 120 90">
+            <path d="M10,84 C 26,20 70,2 96,36" fill="none" stroke="var(--gridline)" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="96" cy="36" r="19" fill="none" stroke="var(--brand)" stroke-width="3"/>
+          </svg>
+          <div class="pv-ball"></div>
+        </div>
+        <h2 id="processing-title">Analyzing your session&hellip;</h2>
+        <div class="processing-live" id="processing-live">
+          <span class="processing-live-dot"></span>
+          <span id="elapsed-time">Starting&hellip;</span>
+        </div>
+        <p style="color:var(--text-secondary)" id="processing-expectation">This can take a few minutes depending on video length.</p>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:2%"></div></div>
+        <div class="stage-list" id="stage-list"></div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section class="view" id="view-dashboard">
+      <div class="container">
+        <div id="demo-banner"></div>
+        <div class="dash-header">
+          <div>
+            <div class="dash-title" id="dash-filename">Session</div>
+            <div class="dash-sub" id="dash-sub">&nbsp;</div>
+          </div>
+          <button class="btn secondary" id="new-session-btn">Analyze another video</button>
+        </div>
+
+        <div id="dash-warnings" aria-live="polite"></div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-tab="coach" role="tab" aria-selected="true" aria-controls="tab-coach" id="tabbtn-coach">Coach</button>
+          <button class="tab-btn" data-tab="shots" role="tab" aria-selected="false" aria-controls="tab-shots" id="tabbtn-shots">Shots</button>
+          <button class="tab-btn" data-tab="replay" role="tab" aria-selected="false" aria-controls="tab-replay" id="tabbtn-replay">Replay</button>
+          <button class="tab-btn" data-tab="details" role="tab" aria-selected="false" aria-controls="tab-details" id="tabbtn-details">Details</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-coach" role="tabpanel" aria-labelledby="tabbtn-coach"></div>
+        <div class="tab-panel" id="tab-shots" role="tabpanel" aria-labelledby="tabbtn-shots"></div>
+        <div class="tab-panel" id="tab-replay" role="tabpanel" aria-labelledby="tabbtn-replay"></div>
+        <div class="tab-panel" id="tab-details" role="tabpanel" aria-labelledby="tabbtn-details">
+          <div class="details-subtabs" role="tablist" aria-label="Detailed analytics">
+            <button class="subtab-btn active" data-subtab="mechanics" role="tab" aria-selected="true" aria-controls="subtab-mechanics" id="subtabbtn-mechanics">Mechanics</button>
+            <button class="subtab-btn" data-subtab="mvm" role="tab" aria-selected="false" aria-controls="subtab-mvm" id="subtabbtn-mvm">Makes vs Misses</button>
+            <button class="subtab-btn" data-subtab="consistency" role="tab" aria-selected="false" aria-controls="subtab-consistency" id="subtabbtn-consistency">Consistency</button>
+            <button class="subtab-btn" data-subtab="trends" role="tab" aria-selected="false" aria-controls="subtab-trends" id="subtabbtn-trends">Trends</button>
+          </div>
+          <div class="subtab-panel active" id="subtab-mechanics" role="tabpanel" aria-labelledby="subtabbtn-mechanics"></div>
+          <div class="subtab-panel" id="subtab-mvm" role="tabpanel" aria-labelledby="subtabbtn-mvm"></div>
+          <div class="subtab-panel" id="subtab-consistency" role="tabpanel" aria-labelledby="subtabbtn-consistency"></div>
+          <div class="subtab-panel" id="subtab-trends" role="tabpanel" aria-labelledby="subtabbtn-trends"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="view" id="view-history">
+      <div class="container">
+        <div class="dash-header">
+          <div class="dash-title">Session history</div>
+          <button class="btn secondary" id="history-back-btn">Back</button>
+        </div>
+        <div class="card" id="history-list"></div>
+      </div>
+    </section>
+
+    <!-- METHODOLOGY -->
+    <section class="view" id="view-methodology">
+      <div class="container">
+        <div class="dash-header">
+          <div class="dash-title">Methodology</div>
+          <button class="btn secondary" id="methodology-back-btn">Back</button>
+        </div>
+        <div class="tab-panel active" id="tab-methodology-standalone"></div>
+      </div>
+    </section>
+
+    <footer class="app-footer">
+      <span id="footer-copy">ArcVision &mdash; local computer-vision shot analysis. No video leaves this machine.</span>
+      &middot; <button class="footer-link" id="footer-methodology-link" type="button">How this works</button>
+    </footer>
+  </div>
+
+  <div class="svg-tooltip" id="svg-tooltip"></div>
+
+  <script src="static/js/api.js"></script>
+  <script src="static/js/charts.js"></script>
+  <script src="static/js/app.js"></script>
+</body>
+</html>
