@@ -159,15 +159,84 @@ const Charts = (() => {
     container.appendChild(svg);
   }
 
-  /** Horizontal ranked bar chart (e.g. top differentiators by effect size). */
+  // Shared offscreen canvas for measuring label text width before laying
+  // out rankedHBar -- real font metrics (not a guessed chars-per-pixel
+  // heuristic), so wrapping decisions match what will actually render.
+  let measureCtx = null;
+  function measureTextWidth(text, font) {
+    if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
+    measureCtx.font = font;
+    return measureCtx.measureText(text).width;
+  }
+
+  // Greedy word-wrap into at most 2 lines within maxWidth. Always puts at
+  // least one word on line 1 even if that single word alone overflows
+  // (an unavoidable minimum -- there is no narrower place to break it).
+  // Never truncates: if line 2 is still long, it renders wider than
+  // maxWidth rather than silently dropping words.
+  function wrapToTwoLines(text, maxWidth, font) {
+    if (measureTextWidth(text, font) <= maxWidth) return [text];
+    const words = text.split(" ");
+    let line1 = "";
+    let i = 0;
+    for (; i < words.length; i++) {
+      const attempt = line1 ? `${line1} ${words[i]}` : words[i];
+      if (line1 && measureTextWidth(attempt, font) > maxWidth) break;
+      line1 = attempt;
+    }
+    const line2 = words.slice(i).join(" ");
+    return line2 ? [line1, line2] : [line1];
+  }
+
+  /** Horizontal ranked bar chart (e.g. top differentiators by effect size).
+      Zero-centered: bars extend right for positive values, left for
+      negative, from a shared center line -- unchanged from before. What
+      changed is the label column: it used to be a fixed 200px, which was
+      too narrow for real metric names ("Trajectory straightness (1.0 =
+      perfectly straight)", "Torso lean at load", etc.) at this chart's
+      12px label font, clipping their start off the left edge of the SVG
+      and, for whichever item has the single largest |value| (whose bar
+      reaches all the way to the label column's edge), overlapping the bar
+      too. Fixed by (1) sizing the label column responsively so it's
+      generous on desktop and still workable at phone widths, and (2)
+      real canvas-measured word-wrap to 2 lines for anything still too
+      long for that column, instead of clipping or shrinking the font. */
   function rankedHBar(container, { items, valueFmt = (v) => v.toFixed(2) }) {
     if (!items.length) return emptyMessage(container, "No ranked metrics available.");
-    const rowH = 34;
-    const height = items.length * rowH + 20;
-    const width = Math.max(container.clientWidth || 640, 320);
-    const margin = { top: 10, right: 60, bottom: 10, left: 200 };
-    const innerW = width - margin.left - margin.right;
+    const width = Math.max(container.clientWidth || 640, 260);
+    const labelFontSize = 12;
+    const valueFontSize = 11;
+    const labelFont = `${labelFontSize}px ${getComputedStyle(document.body).fontFamily}`;
+    const labelGap = 10; // space between the label's right edge and the plot area
+    const marginRight = width < 420 ? 40 : 60;
+    const marginTop = 10, marginBottom = 10;
+    // Responsive label column: up to 260px on wide screens, never less
+    // than 96px even on the narrowest phone widths this chart renders at.
+    const marginLeft = Math.round(Math.max(96, Math.min(260, width * 0.34)));
+    const innerW = width - marginLeft - marginRight;
+    const zeroX = innerW / 2;
+    // The bar for whichever item has the single largest |value| is scaled
+    // to fully span zeroX -- if that were the actual plotted width, its
+    // negative-side value label (drawn just outside the bar, i.e. right at
+    // local x=0) would have nowhere to sit but directly on top of the
+    // metric name label immediately to its left. valuePad reserves a strip
+    // at BOTH outer edges of the plot (mirroring marginRight's existing
+    // reserved space on the positive side) so every value label -- including
+    // the most extreme bar's -- has somewhere to render outside its bar.
+    const valuePad = 44;
+    const plotHalfW = Math.max(20, zeroX - valuePad);
     const maxAbs = Math.max(...items.map((d) => Math.abs(d.value)), 0.01);
+    const lineHeight = labelFontSize + 4;
+    const maxLabelWidth = marginLeft - labelGap;
+
+    const wrappedLabels = items.map((item) => wrapToTwoLines(item.label, maxLabelWidth, labelFont));
+    const minRowH = 34;
+    const rowHeights = wrappedLabels.map((lines) => Math.max(minRowH, lines.length * lineHeight + 16));
+    const rowY = [];
+    let cursor = 0;
+    for (const h of rowHeights) { rowY.push(cursor); cursor += h; }
+    const totalHeight = cursor;
+    const height = totalHeight + marginTop + marginBottom;
 
     // Charts can be built while their tab is still hidden (every Details
     // sub-view is rendered once, upfront, on data load -- see app.js's
@@ -180,19 +249,27 @@ const Charts = (() => {
     // for a chart built while already visible, real width === design
     // width, so this is a no-op.
     const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}`, style: "width:100%;height:auto;display:block;" });
-    const g = el("g", { transform: `translate(${margin.left},${margin.top})` });
-    const zeroX = innerW / 2;
+    const g = el("g", { transform: `translate(${marginLeft},${marginTop})` });
 
     items.forEach((item, i) => {
-      const y = i * rowH;
-      const label = el("text", { x: -8, y: y + rowH / 2 + 4, "text-anchor": "end", "font-size": 12, fill: cssVar("--text-primary") });
-      label.textContent = item.label;
+      const rowH = rowHeights[i];
+      const rowCenterY = rowY[i] + rowH / 2;
+      const lines = wrappedLabels[i];
+
+      const label = el("text", { x: -labelGap, y: 0, "text-anchor": "end", "font-size": labelFontSize, fill: cssVar("--text-primary") });
+      const startY = rowCenterY - ((lines.length - 1) * lineHeight) / 2 + 4;
+      lines.forEach((line, li) => {
+        const tspan = el("tspan", { x: -labelGap, y: startY + li * lineHeight });
+        tspan.textContent = line;
+        label.appendChild(tspan);
+      });
       g.appendChild(label);
 
-      const barW = (Math.abs(item.value) / maxAbs) * zeroX;
+      const barW = (Math.abs(item.value) / maxAbs) * plotHalfW;
+      const barH = Math.min(20, rowH - 14);
       const x = item.value >= 0 ? zeroX : zeroX - barW;
       const rect = el("rect", {
-        x, y: y + 6, width: Math.max(1, barW), height: rowH - 14, rx: 4,
+        x, y: rowCenterY - barH / 2, width: Math.max(1, barW), height: barH, rx: 4,
         fill: item.value >= 0 ? cssVar("--brand") : cssVar("--series-2"),
       });
       rect.addEventListener("mousemove", (evt) => showTooltip(evt, `${item.label}: <strong>${valueFmt(item.value)}</strong>`));
@@ -200,14 +277,14 @@ const Charts = (() => {
       g.appendChild(rect);
 
       const valLabel = el("text", {
-        x: item.value >= 0 ? x + barW + 6 : x - 6, y: y + rowH / 2 + 4,
-        "text-anchor": item.value >= 0 ? "start" : "end", "font-size": 11, fill: cssVar("--text-muted"),
+        x: item.value >= 0 ? x + barW + 6 : x - 6, y: rowCenterY + 4,
+        "text-anchor": item.value >= 0 ? "start" : "end", "font-size": valueFontSize, fill: cssVar("--text-muted"),
       });
       valLabel.textContent = valueFmt(item.value);
       g.appendChild(valLabel);
     });
 
-    g.appendChild(el("line", { x1: zeroX, x2: zeroX, y1: 0, y2: items.length * rowH, stroke: cssVar("--baseline") }));
+    g.appendChild(el("line", { x1: zeroX, x2: zeroX, y1: 0, y2: totalHeight, stroke: cssVar("--baseline") }));
     svg.appendChild(g);
     container.innerHTML = "";
     container.appendChild(svg);

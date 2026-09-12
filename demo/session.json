@@ -1241,7 +1241,7 @@
   ],
   "coaching": {
     "eligible": true,
-    "coach_note": "Your knee angle at release was the most consistent part of your form this session, and upward-motion duration is the clearest place to focus next.",
+    "coach_note": "Your leg extension at release was the most consistent part of your form this session, and your shooting rhythm is the clearest place to focus next.",
     "strength": {
       "metric_key": "knee_angle_at_release_deg",
       "metric_label": "Knee angle at release",
@@ -1253,7 +1253,9 @@
           "mean": 149.81,
           "std_dev": 11.186
         }
-      }
+      },
+      "concept": "Leg extension at release",
+      "noticed_text": "Your lower-body position at release was one of the most repeatable parts of your shot."
     },
     "priority": {
       "metric_key": "upward_duration_sec",
@@ -1267,16 +1269,19 @@
           "std_dev": 1.987
         }
       },
+      "concept": "Shooting rhythm",
+      "noticed_text": "Your timing from your dip into your release varied more from shot to shot than your other measured mechanics.",
       "source": "consistency",
       "confidence": "medium",
       "cues": [
         {
-          "text": "Try keeping the timing of your rise-to-release motion consistent."
+          "text": "Focus on one smooth, repeatable rhythm from your dip into your release."
         },
         {
           "text": "Video a few reps focused on just this one thing before your next full session, so you can check it directly."
         }
-      ]
+      ],
+      "meaning_text": "The time it took you to move from your dip into your release wasn't as repeatable across the session."
     },
     "makes_vs_misses_note": null,
     "makes_vs_misses_reason": "No strong measurable difference was found between your makes and misses this session.",

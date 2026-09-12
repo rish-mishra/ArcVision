@@ -7,6 +7,12 @@
 
 :root {
   color-scheme: light;
+  /* Landing-page-only wide canvas (the hero already used this exact
+     clamp() inline; hoisted here as a token so "How It Works", "Explore a
+     Real Shooting Session", and the proof strip can share it -- keeps the
+     page from visibly contracting right after the hero. Never applied to
+     .container itself, so the dashboard/other app views are unaffected. */
+  --landing-max-width: clamp(1180px, 86vw, 1560px);
   --surface-0: #f4f6f9;
   --surface-1: #ffffff;
   --surface-2: #fbfcfd;
@@ -165,75 +171,173 @@ a:hover { color: var(--accent-2-dark); }
 .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
 
 /* ---------- Landing / upload ---------- */
-.hero { position: relative; text-align: center; padding: 56px 24px 16px; overflow: hidden; }
-/* The real annotated basketball photo below is the hero's visual interest
-   on its own -- an earlier pass added a decorative dual-color radial glow
-   behind it (ember + teal blobs), which was pure decoration competing with
-   the actual photo rather than supporting it. Removed. */
+/* Bottom padding trimmed well below .container's default 80px (meant for
+   space above a page footer, not a mid-page section transition) -- the
+   fake trajectory decoration is gone, so the next section can start close
+   to the fold without a large empty gap after the hero.
+
+   max-width overrides .container's shared 1180px for the hero ONLY (every
+   other section stays at 1180px) -- at large desktop widths 1180px reads as
+   a small, isolated composition floating in a lot of unused viewport. The
+   clamp() floor equals .container's 1180px (so nothing below ~1372px
+   viewport width changes at all -- moderate desktop sizes stay exactly as
+   already verified), scales with the viewport above that, and caps at
+   1560px so the hero widens with the screen without stretching the photo
+   column tall enough to push "How It Works" far below the fold. */
+.hero-container { position: relative; max-width: var(--landing-max-width); padding: 28px 24px 20px; }
+/* Extremely faint structural grid behind the hero only -- technical depth,
+   not decoration: opacity is low enough that it reads as texture, never as
+   a pattern competing with the real photo/analysis frame. */
+.hero-container::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px),
+    linear-gradient(180deg, var(--gridline) 1px, transparent 1px);
+  background-size: 64px 64px; opacity: .05;
+}
+.hero {
+  position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center; gap: clamp(40px, 3vw, 56px); overflow: hidden; margin-bottom: 8px;
+}
+@media (max-width: 860px) { .hero { grid-template-columns: 1fr; gap: 28px; } }
+/* Nudged above the row's true vertical center (align-items: center on
+   .hero) rather than sitting dead-center against the much taller photo
+   column -- reads as intentionally composed, not just mathematically
+   balanced. */
+.hero-copy { position: relative; z-index: 1; text-align: left; margin-top: -50px; }
+@media (max-width: 860px) {
+  /* The -50px nudge above only makes sense against the much-taller photo
+     column in the 2-column desktop layout -- in this single-column stacked
+     layout it has nothing to center against and just pulls the headline up
+     into the navbar. Must come AFTER the base .hero-copy rule above (same
+     specificity -- source order decides the winner). */
+  .hero-copy { margin-top: 0; }
+}
+.hero-eyebrow {
+  font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent-2); margin-bottom: 14px;
+}
+/* The real annotated basketball photo is boxed inside a bordered
+   "analysis frame" (label bar + photo/metric-panel row + a footer that
+   opens the real demo) rather than floating as a plain photo -- see
+   .analysis-frame below. An earlier pass had a decorative dual-color
+   radial glow behind the photo (ember + teal blobs); that stays removed,
+   the frame's own restrained border/label is the only structure added. */
+.hero-visual { position: relative; z-index: 1; }
+.analysis-frame {
+  position: relative; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface-1); box-shadow: var(--shadow-1); overflow: hidden;
+}
+.analysis-frame-label {
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+  font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--accent-2); border-bottom: 1px solid var(--gridline);
+}
+.analysis-frame-label::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); flex: none; }
+.analysis-frame-body { display: grid; grid-template-columns: minmax(0, 1fr) 148px; }
 /* frontend/static/images/hero-basketball.png (pose keypoints, ball
-   trajectory, hoop detection over a real shot) as the hero background.
-   Three background-image layers, painted top to bottom:
-     1. A localized radial vignette sized/centered on the headline/lede/CTA
-        text column -- carries ALL of the "text needs to stay readable"
-        burden, so layer 2 can stay light and the photo can stay visible
-        everywhere else (hoop, shooter, trajectory) instead of the whole
-        image being darkened uniformly.
-     2. A light full-box tint (much lower opacity than a first pass at this
-        that read as too dark overall) for the same dark/light aesthetic
-        the rest of the page uses, not for text contrast.
-     3. The photo itself. "center 20%" keeps the hoop + trajectory apex (the
-        image's upper band) in view under background-size:cover instead of
-        center-cropping into the shooter's feet on typical wide/short hero
-        boxes.
-   mask-image feathers all four edges of the combined result into an oval,
-   so the photo (and both overlay layers riding on top of it) fade into the
-   hero's own background -- transparent, showing the page's surface color
-   and the existing .hero::before glow through it -- instead of ending in a
-   visible rectangular edge, especially at the bottom and sides.
+   trajectory, hoop detection over a real shot). "center 20%" keeps the
+   hoop + trajectory apex (the image's upper band) in view under
+   background-size:cover instead of center-cropping into the shooter's feet.
    Path is RELATIVE to this file (never /static/...) so this resolves
    correctly both locally and on the GitHub Pages project-subpath demo --
    see index.html's head comment on the same constraint. */
 .hero-photo {
-  position: absolute; inset: 0; z-index: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  position: relative; aspect-ratio: 4 / 5;
+  /* Inset shadow, not a mask -- only darkens a thin band at the perimeter
+     without removing any pixel data, so it never hides the real
+     trajectory dots/pose skeleton baked into the photo itself. No edge
+     feather here (unlike an earlier pass) -- inside a bordered frame, a
+     clean rectangular photo reads as a UI panel, not a floating cutout. */
+  box-shadow: inset 0 0 40px 0 rgba(4, 6, 10, 0.22);
   background-image:
-    radial-gradient(ellipse 64% 58% at 50% 46%,
-      color-mix(in srgb, var(--surface-0) 88%, transparent) 0%,
-      color-mix(in srgb, var(--surface-0) 58%, transparent) 42%,
-      color-mix(in srgb, var(--surface-0) 15%, transparent) 68%,
-      transparent 85%),
     linear-gradient(180deg,
-      color-mix(in srgb, var(--surface-0) 8%, transparent) 0%,
-      color-mix(in srgb, var(--surface-0) 20%, transparent) 62%,
-      color-mix(in srgb, var(--surface-0) 58%, transparent) 100%),
+      color-mix(in srgb, var(--surface-0) 4%, transparent) 0%,
+      color-mix(in srgb, var(--surface-0) 30%, transparent) 100%),
     url('../images/hero-basketball.png');
-  background-size: cover, cover, cover;
-  background-position: center, center, center 20%;
-  background-repeat: no-repeat, no-repeat, no-repeat;
-  mask-image: radial-gradient(ellipse 88% 82% at 50% 42%, black 58%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 88% 82% at 50% 42%, black 58%, transparent 100%);
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
+  background-size: cover, cover;
+  background-position: center, center 20%;
+  background-repeat: no-repeat, no-repeat;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .hero-photo {
     background-image:
-      radial-gradient(ellipse 64% 58% at 50% 46%,
-        rgba(8,11,17,0.88) 0%, rgba(8,11,17,0.6) 42%, rgba(8,11,17,0.15) 68%, transparent 85%),
-      linear-gradient(180deg, rgba(8,11,17,0.08) 0%, rgba(8,11,17,0.20) 62%, rgba(8,11,17,0.58) 100%),
+      linear-gradient(180deg, rgba(8,11,17,0.05) 0%, rgba(8,11,17,0.35) 100%),
       url('../images/hero-basketball.png');
   }
 }
 :root[data-theme="dark"] .hero-photo {
   background-image:
-    radial-gradient(ellipse 64% 58% at 50% 46%,
-      rgba(8,11,17,0.88) 0%, rgba(8,11,17,0.6) 42%, rgba(8,11,17,0.15) 68%, transparent 85%),
-    linear-gradient(180deg, rgba(8,11,17,0.08) 0%, rgba(8,11,17,0.20) 62%, rgba(8,11,17,0.58) 100%),
+    linear-gradient(180deg, rgba(8,11,17,0.05) 0%, rgba(8,11,17,0.35) 100%),
     url('../images/hero-basketball.png');
 }
-.hero-mark { position: relative; z-index: 1; margin-bottom: 18px; }
-.hero-mark svg { display: block; margin: 0 auto; }
-.hero h1 { position: relative; z-index: 1; font-size: 36px; font-weight: 800; margin: 0 0 12px; letter-spacing: -0.025em; }
-.hero p.lede { position: relative; z-index: 1; font-size: 17px; color: var(--text-secondary); max-width: 640px; margin: 0 auto 30px; }
+/* Real per-shot output from the featured demo session (shot 7 of
+   fee1c3bcd7b84322 -- elbow angle at release, ball tracking quality, and
+   the frozen verified outcome, straight from that session's stored
+   analysis; see scripts/demo_ground_truth.py for the outcome mapping).
+   Deliberately NOT captioned as describing the adjacent photo -- that
+   photo is a different recording (confirmed by comparing frames) used
+   purely as hero art, so this panel is framed as its own real data
+   excerpt from the actual interactive demo instead. */
+.analysis-panel { display: flex; flex-direction: column; border-left: 1px solid var(--gridline); background: var(--surface-2); }
+.analysis-metric { flex: 1; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--gridline); }
+.analysis-metric:last-child { border-bottom: none; }
+.analysis-metric-value { font-size: 19px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.analysis-metric-label { font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.3; }
+.analysis-metric-value.analysis-outcome-made { color: var(--good); }
+.analysis-metric-value.analysis-outcome-missed { color: var(--critical); }
+.analysis-frame-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  padding: 12px 16px; background: none; border: none; border-top: 1px solid var(--gridline);
+  font: inherit; font-size: 12.5px; color: var(--text-secondary); cursor: pointer; text-align: left;
+  transition: background .15s, color .15s;
+}
+.analysis-frame-footer:hover, .analysis-frame-footer:focus-visible { background: var(--surface-2); color: var(--text-primary); }
+.analysis-frame-footer-arrow { color: var(--brand); font-weight: 700; transition: transform .15s; }
+.analysis-frame-footer:hover .analysis-frame-footer-arrow { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) {
+  .analysis-frame-footer, .analysis-frame-footer-arrow { transition: none; }
+  .analysis-frame-footer:hover .analysis-frame-footer-arrow { transform: none; }
+}
+@media (max-width: 860px) {
+  .hero-photo { aspect-ratio: 16 / 10; }
+  .analysis-frame-body { grid-template-columns: 1fr; }
+  .analysis-panel { flex-direction: row; border-left: none; border-top: 1px solid var(--gridline); }
+  .analysis-metric { border-bottom: none; border-right: 1px solid var(--gridline); }
+  .analysis-metric:last-child { border-right: none; }
+}
+/* Real ArcVision pipeline stages (RF-DETR ball+hoop detector, MediaPipe
+   pose, the shot/mechanics analytics) as a capability row -- scaled up to
+   read as three real product capabilities, not footer metadata, while
+   staying an integrated row (no cards/backgrounds per item). Grid with
+   three equal columns (not flex + justify-content: space-between) so each
+   capability owns a genuine third of the row's width -- content is
+   centered within that third rather than clustering tight around the
+   icon+text with huge gaps between three narrow clusters. */
+.hero-capabilities {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin: 36px 0 0; padding-top: 28px;
+  border-top: 1px solid var(--gridline); list-style: none;
+}
+.hero-capabilities li { display: flex; align-items: center; gap: 20px; }
+.hero-capabilities svg { width: clamp(28px, 1.1vw + 16px, 40px); height: clamp(28px, 1.1vw + 16px, 40px); color: var(--accent-2); flex: none; }
+.hero-capabilities span { display: flex; flex-direction: column; font-size: clamp(14.5px, 0.3vw + 13px, 17px); font-weight: 600; color: var(--text-muted); line-height: 1.3; }
+.hero-capabilities span strong { font-size: clamp(18px, 0.45vw + 15px, 24px); font-weight: 800; color: var(--text-primary); margin-bottom: 3px; }
+@media (max-width: 720px) {
+  /* Below the hero's own stacked-layout breakpoint, three equal grid
+     columns get too narrow for "Ball + hoop" to read comfortably -- revert
+     to the flex-wrap row (2-up then 1) used before this pass. */
+  .hero-capabilities { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 24px; }
+  .hero-capabilities svg { width: 26px; height: 26px; }
+  .hero-capabilities span { font-size: 13px; }
+  .hero-capabilities span strong { font-size: 15px; }
+}
+@media (max-width: 480px) { .hero-capabilities { gap: 18px; } }
+.hero h1 { position: relative; font-size: clamp(38px, 2.6vw + 20px, 56px); font-weight: 800; margin: 0 0 16px; letter-spacing: -0.025em; line-height: 1.08; }
+.hero-emph { color: var(--brand); }
+/* max-width widened from 480px (well under the hero-copy column's ~700px+
+   at desktop) so the sentence uses the column and wraps to roughly two
+   natural lines instead of four short ones. */
+.hero p.lede { position: relative; font-size: 19px; line-height: 1.5; color: var(--text-secondary); max-width: 700px; margin: 0 0 26px; }
 
 .dropzone {
   position: relative; z-index: 1;
@@ -252,41 +356,35 @@ a:hover { color: var(--accent-2-dark); }
   padding: 11px 22px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700;
   cursor: pointer; margin-top: 14px; transition: background .15s, transform .1s, box-shadow .15s;
 }
-.btn:hover { background: var(--brand-dark); box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 35%, transparent); }
+.btn:hover { background: var(--brand-dark); box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 35%, transparent); transform: translateY(-1px); }
 .btn:active { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) { .btn { transition: background .15s, box-shadow .15s; } .btn:hover, .btn:active { transform: none; } }
 .btn.secondary { background: transparent; color: var(--accent-2); border: 1px solid var(--border); box-shadow: none; }
 .btn.secondary:hover { background: var(--surface-2); color: var(--accent-2-dark); box-shadow: none; }
 
-.demo-cta { margin: 4px auto 0; text-align: center; position: relative; z-index: 1; }
+.hero-actions { position: relative; margin-top: 4px; }
 .btn-demo { font-size: 15px; padding: 13px 28px; }
-.demo-cta-caption { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.demo-cta-caption { margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+/* Was a large standalone "Analyze your own footage" card directly under the
+   hero -- interrupted the page flow on its own. Its two links now live here
+   instead, as a small secondary/tertiary action row right under the primary
+   CTA (still the exact same #demo-upload-notice/#demo-upload-actions
+   elements app.js already populates -- see initDemoMode() -- only the
+   surrounding markup/position/styling changed). */
+.hero-secondary-actions { margin-top: 14px; }
+.demo-upload-actions { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.demo-upload-actions .btn {
+  background: none; color: var(--text-secondary); border: none; padding: 0; margin: 0;
+  font-size: 13px; font-weight: 600; box-shadow: none; text-decoration: underline;
+  text-decoration-color: var(--border); text-underline-offset: 3px;
+}
+.demo-upload-actions .btn:hover { color: var(--accent-2); text-decoration-color: currentColor; box-shadow: none; }
+.demo-upload-actions-pending { font-size: 12.5px; color: var(--text-muted); }
 
-.recording-tips {
-  position: relative; z-index: 1;
-  max-width: 780px; margin: 40px auto 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
-}
-@media (max-width: 720px) { .recording-tips { grid-template-columns: 1fr; } }
 @media (max-width: 480px) {
-  .hero h1 { font-size: 27px; }
+  .hero h1 { font-size: 30px; }
   .hero p.lede { font-size: 15px; }
-  /* cover-fit crops the widest slice of the photo on narrow screens, and
-     the visible sliver lands close to the localized text vignette above --
-     a light extra trim here is enough of a legibility safety margin without
-     re-introducing a heavy blanket dim (the vignette already carries most
-     of that job, same as on desktop). */
-  .hero-photo { opacity: 0.78; }
 }
-.tip-card {
-  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 16px; font-size: 13px; color: var(--text-secondary);
-}
-.tip-icon {
-  width: 22px; height: 22px; margin-bottom: 10px;
-  display: flex; align-items: center; justify-content: center;
-}
-.tip-icon-brand { color: var(--brand); }
-.tip-icon-accent { color: var(--accent-2); }
-.tip-card .tip-title { color: var(--text-primary); font-weight: 700; font-size: 13px; margin-bottom: 4px; }
 
 .upload-error {
   position: relative; z-index: 1;
@@ -295,17 +393,115 @@ a:hover { color: var(--accent-2-dark); }
   padding: 12px 16px; border-radius: var(--radius-md); font-size: 14px; display: none;
 }
 
-.demo-upload-notice {
-  position: relative; z-index: 1;
-  max-width: 640px; margin: 16px auto 0; padding: 20px 22px;
-  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  text-align: left; box-shadow: var(--shadow-1);
+/* ---------- Topbar demo-only nav ---------- */
+/* "Demo"/"How It Works"/"GitHub"/"Run Locally" only make sense on the
+   public demo -- there's nothing to point at in local mode, which never
+   reaches initDemoMode() and so never gains .is-demo-mode. */
+.topbar-links, .btn-nav-cta { display: none; }
+body.is-demo-mode .topbar-links { display: flex; align-items: center; gap: 18px; margin-right: 4px; }
+body.is-demo-mode .btn-nav-cta { display: inline-block; padding: 7px 14px; font-size: 13px; margin: 0; }
+.topbar-link { font-size: 13.5px; font-weight: 600; color: var(--text-secondary); text-decoration: none; }
+.topbar-link:hover { color: var(--text-primary); }
+@media (max-width: 760px) { .topbar-links { display: none !important; } }
+
+/* ---------- How it works (3-step) ---------- */
+/* These three sections each provide their own vertical rhythm via their
+   own padding -- the shared .container's default vertical padding (tuned
+   for a single full-height view like the dashboard) would otherwise stack
+   on top of it and leave a large empty gap before the footer. */
+.steps .container, .product-preview .container, .proof-strip .container {
+  padding-top: 0; padding-bottom: 0;
+  /* Same wide canvas as the hero, applied only to these landing sections'
+     own .container instances -- the dashboard's .container (and every
+     other view) is untouched, so this never affects the actual app. */
+  max-width: var(--landing-max-width);
 }
-.demo-upload-notice h3 { margin: 0 0 8px; font-size: 16px; }
-.demo-upload-notice p { margin: 0 0 14px; font-size: 13.5px; color: var(--text-secondary); }
-.demo-upload-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.demo-upload-actions .btn { margin-top: 0; }
-.demo-upload-actions-pending { font-size: 12.5px; color: var(--text-muted); }
+.steps { padding: 72px 0 8px; }
+.section-eyebrow {
+  font-size: clamp(14px, 0.9vw + 10px, 16px); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent-2); margin-bottom: 28px;
+}
+.steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; }
+@media (max-width: 720px) { .steps-grid { grid-template-columns: 1fr; gap: 28px; } }
+.step { position: relative; padding-top: 12px; border-top: 2px solid var(--gridline); transition: border-color .18s; }
+.step:hover { border-top-color: var(--brand); }
+.step-num {
+  font-size: clamp(17px, 0.6vw + 15px, 19px); font-weight: 800; letter-spacing: .04em; color: var(--brand);
+  font-variant-numeric: tabular-nums; margin-bottom: 20px;
+}
+.step-icon { color: var(--accent-2); margin-bottom: 16px; }
+.step-icon svg { width: 32px; height: 32px; }
+.step h3 { margin: 0 0 10px; font-size: clamp(21px, 1vw + 17px, 24px); }
+.step p { margin: 0; font-size: clamp(15px, 0.5vw + 14px, 16.5px); color: var(--text-secondary); line-height: 1.58; }
+.steps-details { margin: 32px 0 0; }
+.steps-details summary {
+  cursor: pointer; font-size: 15px; font-weight: 700; color: var(--accent-2);
+  list-style: none; display: inline-flex; align-items: center; gap: 6px; user-select: none;
+}
+.steps-details summary::-webkit-details-marker { display: none; }
+.steps-details summary::before { content: "▸"; font-size: 11px; transition: transform .12s; }
+.steps-details[open] summary::before { transform: rotate(90deg); }
+.steps-details ul { margin: 14px 0 0; padding: 0 0 0 18px; font-size: 15px; color: var(--text-secondary); line-height: 1.7; }
+
+/* ---------- Product preview ---------- */
+/* Bottom padding trimmed to match .steps' own convention (8px, not a
+   symmetric 64px) -- .product-preview-media's margin-bottom below already
+   reserves ample clearance for the inset screenshot's overhang and the
+   caption beneath it, so a full 64px of section padding on top of that
+   double-counts the same space and reads as one large empty gap before the
+   proof strip. */
+.product-preview { display: none; padding: 64px 0 8px; }
+body.is-demo-mode .product-preview { display: block; }
+.product-preview-inner { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 48px; align-items: center; }
+@media (max-width: 860px) { .product-preview-inner { grid-template-columns: 1fr; gap: 28px; } }
+.product-preview-copy h2 { margin: 0 0 14px; font-size: 30px; font-weight: 800; letter-spacing: -0.015em; }
+.product-preview-copy p { margin: 0 0 24px; font-size: 16.5px; color: var(--text-secondary); line-height: 1.6; max-width: 540px; }
+/* margin (not padding) on purpose -- the inset screenshot's `bottom: -9%`
+   below resolves against this element's own height, so padding here would
+   grow that height and push the inset down further, chasing the caption's
+   clearance in a feedback loop. Margin reserves flow space for the caption
+   without feeding back into that percentage. */
+.product-preview-media { position: relative; margin-bottom: 150px; }
+.product-preview-main {
+  display: block; width: 100%; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  box-shadow: var(--shadow-1); transition: box-shadow .2s, transform .2s;
+}
+.product-preview-inset {
+  position: absolute; width: 46%; left: -6%; bottom: -9%; border-radius: var(--radius-md);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card-hover); background: var(--surface-1);
+  transition: transform .2s;
+}
+.product-preview-media:hover .product-preview-main { box-shadow: var(--shadow-card-hover); transform: translateY(-2px); }
+.product-preview-media:hover .product-preview-inset { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) {
+  .product-preview-main, .product-preview-inset { transition: none; }
+}
+@media (max-width: 860px) { .product-preview-inset { left: auto; right: -2%; } }
+@media (max-width: 480px) { .product-preview-inset { width: 52%; bottom: -7%; } }
+/* Fixed px, positioned within the margin-bottom reserved above -- clears
+   the inset screenshot's ~80-110px overhang (measured across breakpoints)
+   with room to spare. States plainly these are static screenshots, not a
+   clickable mini-demo. */
+.product-preview-caption {
+  position: absolute; left: 0; right: 0; bottom: -140px;
+  font-size: 12px; color: var(--text-muted); text-align: center;
+}
+
+/* ---------- Proof strip ---------- */
+.proof-strip { display: none; padding: 44px 0 64px; border-top: 1px solid var(--gridline); }
+body.is-demo-mode .proof-strip { display: block; }
+.proof-strip-head { font-size: clamp(17px, 0.8vw + 14px, 19.5px); font-weight: 700; margin-bottom: 30px; }
+.proof-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+@media (max-width: 720px) { .proof-grid { grid-template-columns: repeat(2, 1fr); } }
+.proof-num { font-size: clamp(34px, 2vw + 26px, 40px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--accent-2); }
+.proof-label { font-size: 14.5px; color: var(--text-muted); margin-top: 6px; }
+/* max-width widened from a flat 680px, which was well under the proof
+   strip's now-wide container (1560px at 1920px viewport) and forced a
+   2-line wrap with plenty of room to spare -- clamp() lets it use much
+   more of that width on large desktop while still capping at a sensible
+   line length on smaller screens. */
+.proof-strip-note { margin-top: 28px; font-size: 15px; color: var(--text-muted); max-width: clamp(480px, 56vw, 1040px); }
+.proof-strip-note a { color: var(--text-secondary); }
 
 /* ---------- Processing ---------- */
 .processing-wrap { max-width: 560px; margin: 80px auto; text-align: center; }
@@ -431,6 +627,17 @@ a:hover { color: var(--accent-2-dark); }
   .coach-note-block { font-size: 15.5px; }
 }
 
+/* "What this means" -- connects the measurement to the physical shooting
+   motion, between the noticed-sentence and the actionable cue. Teal (not
+   the cue's orange) to read as explanatory, not actionable, matching the
+   same accent-2-for-explanation convention used elsewhere (e.g. the hero
+   eyebrow, section labels). */
+.coach-focus-meaning { position: relative; margin: 0 0 18px; }
+.coach-focus-meaning-label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-2); margin-bottom: 6px; }
+.coach-focus-meaning p { font-size: 14px; color: var(--text-secondary); margin: 0; max-width: 560px; }
+
+.coach-card-strength-detail { font-size: 13px; color: var(--text-muted); margin: 6px 0 0; }
+
 .coach-cues { position: relative; margin-bottom: 16px; }
 .coach-cues-label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
 .coach-cue-primary {
@@ -462,6 +669,18 @@ a:hover { color: var(--accent-2-dark); }
 .coach-card-mvm p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
 .coach-card-empty { color: var(--text-muted); }
 .coach-card-empty p { font-size: 13px; margin: 0; }
+
+/* ---------- Details tab: short section explainers + session takeaway ---------- */
+/* Reuses .card's box (background/border/padding/shadow) with the same
+   colored-left-border accent already used for .coach-card-strength above,
+   not a new visual language. */
+.details-explainer { border-left: 3px solid var(--accent-2); }
+.details-explainer p { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.55; }
+.details-explainer p + p { margin-top: 8px; }
+.session-takeaway { border-left: 3px solid var(--brand); }
+.session-takeaway-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--brand); margin-bottom: 6px; }
+.session-takeaway h3 { margin: 0 0 6px; font-size: 17px; }
+.session-takeaway p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
 
 .coach-abstain { text-align: center; max-width: 480px; margin: 40px auto; padding: 12px; }
 .coach-abstain-icon {
