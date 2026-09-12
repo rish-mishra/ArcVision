@@ -203,3 +203,48 @@ def test_f_omitted_shots_note_has_no_mode_check_normal_sessions_get_it_too():
     body = _function_body("omittedShotsNote")
     assert "ARCVISION_MODE" not in body
     assert "verified_outcome" not in body
+
+
+# ---------------------------------------------------------------------------
+# ARCVISION -- FEATURED DEMO SHOOTING-SIDE CLEANUP.
+#
+# The shooting-side heuristic (app/biomechanics/shooting_side.py) cannot
+# reliably determine the shooting hand on the featured demo's side/profile
+# camera angle -- all 11 real shots are right-handed but the heuristic
+# alternates. That is a genuine data-quality limitation, not a bug, and is
+# out of scope to fix further. Instead the "Shooting side" row is hidden
+# from display for the featured demo ONLY, reusing shot.verified_outcome --
+# the same pre-existing flag `outcomeRows` already branches on two lines
+# above, present only on the one frozen/verified demo session and never on
+# a normal local upload -- rather than inventing a new session-ID check.
+# ---------------------------------------------------------------------------
+
+def test_shooting_side_row_hidden_only_for_verified_demo_shots():
+    body = _function_body("renderShotDetail")
+    assert '...(verified ? [] : [["Shooting side", shot.shooting_side || "undetermined"]])' in body
+
+
+def test_shooting_side_removal_reuses_existing_verified_flag_not_a_new_check():
+    # No session-ID hack: the gate must be the same `verified` local
+    # (shot.verified_outcome) already used for the Outcome row, not a new
+    # DEMO_SESSION_ID / ARCVISION_MODE / session_id comparison.
+    body = _function_body("renderShotDetail")
+    assert "const verified = shot.verified_outcome;" in body
+    assert "session_id" not in body
+    assert "DEMO_SESSION_ID" not in body
+
+
+def test_shooting_side_row_removes_cleanly_no_blank_row_left_behind():
+    # The row is excluded via an empty-array spread branch, not blanked out
+    # with an empty label/value pair -- so no gap/blank row can ever render.
+    body = _function_body("renderShotDetail")
+    assert '["Shooting side", ""]' not in body
+    assert '["", ""]' not in body
+
+
+def test_shooting_side_removal_never_writes_the_underlying_field():
+    # Presentation-only: this change must only ever READ shot.shooting_side,
+    # never assign to it -- the stored data (and the demo's frozen ground
+    # truth) stays untouched.
+    body = _function_body("renderShotDetail")
+    assert ".shooting_side =" not in body

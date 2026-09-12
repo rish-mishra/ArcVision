@@ -160,6 +160,29 @@ function switchView(name) {
   document.getElementById(`view-${name}`).classList.add("active");
 }
 
+/* Nav links into landing-page sections ("How It Works", "Tech") need to work
+   from inside the dashboard too, where the target section exists in the DOM
+   but its ancestor .view is display:none -- a plain href="#id" anchor jump
+   would silently do nothing there instead of taking the visitor back to the
+   landing page. This switches to the landing view first (a no-op if already
+   there) and only then scrolls, using rAF x2 to wait for the display:none ->
+   block layout change to actually take effect before measuring scroll
+   position (scrolling immediately after the class change can measure the
+   pre-reflow, still-collapsed layout). */
+function goToLandingSection(sectionId) {
+  const alreadyOnLanding = document.getElementById("view-landing").classList.contains("active");
+  if (!alreadyOnLanding) switchView("landing");
+  const scrollToSection = () => {
+    const el = document.getElementById(sectionId);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  if (alreadyOnLanding) {
+    scrollToSection();
+  } else {
+    requestAnimationFrame(() => requestAnimationFrame(scrollToSection));
+  }
+}
+
 /* ---------------- Upload flow ---------------- */
 
 /* Reads a video file's duration client-side via a throwaway <video> element.
@@ -275,6 +298,14 @@ function renderDemoBanner() {
 function initDemoMode() {
   if (window.ARCVISION_MODE !== "demo") return;
 
+  // Every landing-page section that only makes sense for the public demo
+  // (nav links, the product-preview section, the proof strip) carries this
+  // class and is display:none by default in main.css -- a single body
+  // class flips all of them on at once instead of toggling each element's
+  // inline style individually. Local mode never reaches this function, so
+  // it never gains the class and these sections stay hidden there.
+  document.body.classList.add("is-demo-mode");
+
   const cta = document.getElementById("demo-cta");
   if (cta) cta.style.display = "block";
 
@@ -285,6 +316,21 @@ function initDemoMode() {
   const dropzone = document.getElementById("dropzone");
   if (dropzone) dropzone.style.display = "none";
   renderDemoUploadNotice();
+
+  // Nav "GitHub" and the proof strip's "full evaluation" link both point at
+  // the public repository -- populated at runtime from the same env value
+  // as renderDemoUploadNotice() above, never hardcoded (see
+  // frontend/static/js/env.js). Left as "#" (inert) if the repo URL isn't
+  // known yet, same graceful-degradation behavior as the rest of demo mode.
+  // "Run ArcVision locally" now lives only in the hero's own secondary
+  // action (populated by renderDemoUploadNotice()), not in the nav.
+  const repoUrl = window.ARCVISION_REPO_URL;
+  if (repoUrl) {
+    const githubLink = document.getElementById("nav-github-link");
+    if (githubLink) githubLink.href = repoUrl;
+    const evalLink = document.getElementById("proof-eval-link");
+    if (evalLink) evalLink.href = repoUrl;
+  }
 
   // Neither claim is true for the static demo -- there's no backend to
   // build a session history against (a single precomputed session, not a
@@ -313,19 +359,61 @@ function initDemoMode() {
   const newSessionBtn = document.getElementById("new-session-btn");
   if (newSessionBtn) newSessionBtn.textContent = "Run ArcVision locally";
 
+  async function enterInteractiveDemo() {
+    try {
+      const results = await Api.loadDemoSession();
+      currentResults = results;
+      renderDashboard(results);
+      switchView("dashboard");
+    } catch (err) {
+      const errorBox = document.getElementById("upload-error");
+      errorBox.textContent = err.message || "The demo session could not be loaded.";
+      errorBox.style.display = "block";
+    }
+  }
+
+  // Three "Try Interactive Demo"/"Try Demo" entry points on the redesigned
+  // landing page (hero, product-preview section, nav) all load the exact
+  // same precomputed session through the exact same call -- none of them
+  // duplicate or reimplement demo-loading logic. The preview CTA keeps its
+  // href="#demo-cta" in markup as a no-JS fallback (scrolls to the hero),
+  // overridden here to actually open the demo when JS runs.
   const tryBtn = document.getElementById("try-demo-btn");
-  if (tryBtn) {
-    tryBtn.addEventListener("click", async () => {
-      try {
-        const results = await Api.loadDemoSession();
-        currentResults = results;
-        renderDashboard(results);
-        switchView("dashboard");
-      } catch (err) {
-        const errorBox = document.getElementById("upload-error");
-        errorBox.textContent = err.message || "The demo session could not be loaded.";
-        errorBox.style.display = "block";
-      }
+  if (tryBtn) tryBtn.addEventListener("click", enterInteractiveDemo);
+
+  const previewTryBtn = document.getElementById("preview-demo-btn");
+  if (previewTryBtn) {
+    previewTryBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      enterInteractiveDemo();
+    });
+  }
+
+  const navTryDemoBtn = document.getElementById("nav-try-demo-btn");
+  if (navTryDemoBtn) navTryDemoBtn.addEventListener("click", enterInteractiveDemo);
+
+  const heroFrameCta = document.getElementById("hero-frame-cta");
+  if (heroFrameCta) heroFrameCta.addEventListener("click", enterInteractiveDemo);
+
+  // "How It Works" and "Tech" are landing-page sections, not a separate
+  // view -- from inside the dashboard a plain anchor jump would land on a
+  // display:none element and do nothing, so these route through
+  // goToLandingSection() instead (switches back to the landing view first
+  // when needed, then scrolls). href="#how-it-works"/"#tech" stay in the
+  // markup as a no-JS fallback.
+  const navHowItWorksLink = document.getElementById("nav-how-it-works-link");
+  if (navHowItWorksLink) {
+    navHowItWorksLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      goToLandingSection("how-it-works");
+    });
+  }
+
+  const navTechLink = document.getElementById("nav-tech-link");
+  if (navTechLink) {
+    navTechLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      goToLandingSection("tech");
     });
   }
 }
@@ -541,8 +629,25 @@ function initTabs() {
       btn.classList.add("active");
       btn.setAttribute("aria-selected", "true");
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+      if (btn.dataset.tab === "replay") nudgeReplayVideoIfStuck();
     });
   });
+}
+
+/* renderReplay() sets the <video>'s src once, up front, while Coach (not
+   Replay) is the active tab -- i.e. while the video's ancestor .tab-panel
+   is display:none. Some browsers defer or never properly start the actual
+   network fetch for a media resource assigned while hidden, leaving the
+   element stuck at readyState 0 (HAVE_NOTHING) indefinitely -- a black
+   player at 0:00 that never recovers, since nothing ever prompted it to
+   try again. Calling .load() here (only if it's still stuck -- a no-op
+   safety check, never interrupts a video that's already loading/loaded
+   fine) re-issues the resource fetch now that the element is actually
+   visible, exactly like the very first render would have if the tab had
+   been visible from the start. */
+function nudgeReplayVideoIfStuck() {
+  const video = document.getElementById("replay-video");
+  if (video && video.readyState === 0 && video.src) video.load();
 }
 
 function initSubTabs() {
@@ -595,25 +700,6 @@ function confidenceCell(v) {
    already-computed, already-selected output -- this file never re-derives
    which finding is shown, only how it's worded/laid out). ---------------- */
 
-const FRIENDLY_METRIC_NAMES = {
-  knee_angle_at_load_deg: "Knee bend at load",
-  knee_angle_at_release_deg: "Leg extension at release",
-  elbow_angle_at_load_deg: "Elbow position at load",
-  elbow_angle_at_release_deg: "Elbow extension at release",
-  torso_lean_at_load_deg: "Posture at load",
-  torso_lean_at_release_deg: "Posture at release",
-  release_height_norm: "Release point",
-  release_horizontal_offset_norm: "Release position",
-  load_duration_sec: "Set-up rhythm",
-  upward_duration_sec: "Shot timing",
-  total_prep_duration_sec: "Overall shot rhythm",
-  apex_height_norm: "Shot arc height",
-  trajectory_straightness_ratio: "Shot path",
-};
-function friendlyMetricName(key, fallbackLabel) {
-  return FRIENDLY_METRIC_NAMES[key] || fallbackLabel;
-}
-
 const CONFIDENCE_LANGUAGE = { high: "Strong evidence", medium: "Moderate evidence", low: "Limited evidence" };
 
 // Keyed by coaching.py's own exact reason strings (small, closed set it
@@ -634,18 +720,6 @@ const MVM_EMPTY_STATES = {
     body: "ArcVision needs a handful of confidently-classified makes and misses to compare -- take a few more shots.",
   },
 };
-
-function focusEvidenceSentence(priority) {
-  const label = friendlyMetricName(priority.metric_key, priority.metric_label).toLowerCase();
-  if (priority.source === "makes_vs_misses") {
-    const d = priority.evidence.detail || {};
-    const direction = (d.made_mean !== null && d.made_mean !== undefined && d.missed_mean !== null && d.missed_mean !== undefined)
-      ? (d.made_mean > d.missed_mean ? "higher on your makes than your misses" : "higher on your misses than your makes")
-      : "different between your makes and misses";
-    return `Your ${label} was ${direction} this session.`;
-  }
-  return `Your ${label} varied more than your other measured mechanics this session.`;
-}
 
 function renderCues(cues) {
   if (!cues || !cues.length) return "";
@@ -685,13 +759,17 @@ function renderFocusHero(coaching) {
       </div>`;
   }
   const p = coaching.priority;
-  const label = friendlyMetricName(p.metric_key, p.metric_label);
   const sourceLabel = p.source === "makes_vs_misses" ? "Makes vs. misses comparison" : "Shot-to-shot consistency";
   return `
     <div class="coach-focus">
       <div class="coach-focus-eyebrow">Your #1 focus</div>
-      <h2>${label}</h2>
-      <p class="coach-focus-evidence">${focusEvidenceSentence(p)}</p>
+      <h2>${p.concept || p.metric_label}</h2>
+      <p class="coach-focus-evidence">${p.noticed_text}</p>
+      ${p.meaning_text ? `
+      <div class="coach-focus-meaning">
+        <div class="coach-focus-meaning-label">What this means</div>
+        <p>${p.meaning_text}</p>
+      </div>` : ""}
       ${renderCues(p.cues)}
       ${renderEvidenceDisclosure(p, sourceLabel, p.confidence)}
     </div>`;
@@ -702,12 +780,16 @@ function renderStrengthCard(coaching) {
     return `<div class="card coach-card-empty"><div class="coach-card-eyebrow">Keep this</div><p>Not enough shot-to-shot data yet to call out a strongest mechanic.</p></div>`;
   }
   const s = coaching.strength;
-  const label = friendlyMetricName(s.metric_key, s.metric_label);
+  // Basketball meaning first (noticed_text, e.g. "Your lower-body position
+  // at release was one of the most repeatable parts of your shot."), then
+  // the specific measurement as supporting detail -- see coaching.py's
+  // _STRENGTH_INTRO for why these are deliberately two separate sentences.
   return `
     <div class="card coach-card-strength">
       <div class="coach-card-eyebrow">Keep this</div>
-      <h3>${label}</h3>
-      <p>This was one of your most repeatable measured mechanics across the session.</p>
+      <h3>${s.concept || s.metric_label}</h3>
+      <p>${s.noticed_text}</p>
+      <p class="coach-card-strength-detail">Your ${s.metric_label.toLowerCase()} stayed relatively consistent across the session.</p>
       ${renderEvidenceDisclosure(s, "Shot-to-shot consistency", null)}
     </div>`;
 }
@@ -1024,10 +1106,23 @@ function renderShotDetail(shot) {
         ["Outcome", `${shot.outcome.toUpperCase()} &mdash; ${confidenceCell(shot.outcome_confidence)}`],
         ["Reason", humanize(shot.outcome_reason)],
       ];
+  // Shooting side is hidden for the featured public demo only: the wrist-
+  // to-ball-distance heuristic it comes from can't reliably tell the
+  // shooting arm apart from the guide arm on this session's side/profile
+  // camera angle (investigated directly against this session's real pose
+  // data -- see app/biomechanics/shooting_side.py's docstring), so this
+  // session would confidently show a wrong value for it on every shot. A
+  // missing minor field beats a confidently wrong one. `verified` (shot.
+  // verified_outcome) is the same existing signal already used two lines
+  // up to distinguish this one frozen, manually-verified session from a
+  // normal local upload -- no new session-ID check. Every other field,
+  // and shooting_side itself in the underlying data, is untouched; a
+  // local upload (verified always undefined there) still shows this row
+  // exactly as before.
   const rows = [
     ...outcomeRows,
     ["Tracking quality for this shot", trackingQualityBadge(shot.overall_confidence_level)],
-    ["Shooting side", shot.shooting_side || "undetermined"],
+    ...(verified ? [] : [["Shooting side", shot.shooting_side || "undetermined"]]),
     ["Release time", shot.release_time_sec !== null ? `${shot.release_time_sec.toFixed(2)}s` : "unavailable"],
     ["Release confidence", confidenceCell(shot.release_confidence)],
     ["Pose quality", confidenceCell(shot.pose_quality)],
@@ -1155,7 +1250,11 @@ function renderMechanics(data) {
   // recomputed or altered between the two.
   const metricValues = MECHANICS_METRICS.map((m) => shots.map((s) => m.path(s)));
 
-  container.innerHTML = `<div class="metric-chart-grid">${MECHANICS_METRICS.map((m, i) => `
+  container.innerHTML = `
+    <div class="card details-explainer">
+      <p>Measurements ArcVision derived from the video for each shot. If a shot has no value on a chart, that mechanic wasn't reliably measurable for that shot.</p>
+    </div>
+    <div class="metric-chart-grid">${MECHANICS_METRICS.map((m, i) => `
     <div class="card">
       <h3>${m.label}</h3>
       <div class="card-sub">${chartSubCopy}</div>
@@ -1200,9 +1299,19 @@ function outcomeLegendRow(outcomes) {
   ).join("")}</div>`;
 }
 
+/* Plain-English direction sentence for one makes-vs-misses comparison --
+   reused by both the ranked chart's tooltip context and the session
+   takeaway below. Never invents a threshold or causal claim: it only
+   restates which group's real, already-computed mean was higher. */
+function mvmDirectionSentence(c) {
+  const higher = c.made_mean > c.missed_mean ? "made" : "missed";
+  return `Measured higher on your ${higher} shots than your ${higher === "made" ? "missed" : "made"} shots this session (${c.effect_label} effect size).`;
+}
+
 function renderMvm(data) {
   const mvm = data.makes_vs_misses;
   const container = document.getElementById("subtab-mvm");
+  const shots = data.shots || [];
   if (!mvm.eligible) {
     const reasonText = {
       not_enough_total_shots: "Not enough shots were detected this session to compare makes vs. misses reliably.",
@@ -1216,7 +1325,29 @@ function renderMvm(data) {
     .filter((c) => c.sufficient_sample && c.effect_size !== null)
     .sort((a, b) => Math.abs(b.effect_size) - Math.abs(a.effect_size));
 
+  // The made/missed groups behind this comparison always come from
+  // ArcVision's own outcome detection (app/analytics/makes_vs_misses.py
+  // runs before any verified outcome exists) -- in the one session with
+  // frozen verified outcomes, that grouping can genuinely disagree with
+  // the verified badges shown in Coach/Shots/Replay, so this is called
+  // out explicitly rather than left to look inconsistent.
+  const hasVerified = shots.some((s) => s.verified_outcome);
+  const top = ranked[0];
+
   container.innerHTML = `
+    <div class="card details-explainer">
+      <div class="coach-card-eyebrow">How to read this</div>
+      <p>This ranks the mechanics that differed most between your made and missed shots this session. Bar length is the
+        <strong>size</strong> of the difference; direction shows which group measured higher. These are standardized
+        effect sizes, not raw degrees or seconds &mdash; they describe this session's data, not proof that a mechanic caused a make or a miss.</p>
+      ${hasVerified ? `<p>Made/Missed groups here follow ArcVision's own shot outcome detection for this session, which can differ from the manually verified outcomes shown in Coach, Shots, and Replay.</p>` : ""}
+    </div>
+    ${top ? `
+    <div class="card session-takeaway">
+      <div class="session-takeaway-eyebrow">Biggest measured difference</div>
+      <h3>${top.metric_name}</h3>
+      <p>${mvmDirectionSentence(top)}</p>
+    </div>` : ""}
     <div class="card">
       <h3>Ranked differentiators (effect size)</h3>
       <div class="card-sub">Positive = higher on made shots. Made n=${mvm.made_count}, Missed n=${mvm.missed_count}.</div>
@@ -1250,7 +1381,6 @@ function renderMvm(data) {
     items: ranked.map((c) => ({ label: c.metric_name, value: c.effect_size })),
   });
 
-  const shots = data.shots || [];
   mvm.comparisons.filter((c) => c.sufficient_sample).forEach((c) => {
     const el = document.getElementById(`strip-${c.metric_name.replace(/[^a-z0-9]/gi, "")}`);
     const getter = ALL_METRICS_BY_LABEL[c.metric_name];
@@ -1270,6 +1400,9 @@ function renderConsistency(data) {
   }
   const sorted = [...sufficient].sort((a, b) => a.coefficient_of_variation - b.coefficient_of_variation);
   container.innerHTML = `
+    <div class="card details-explainer">
+      <p>How repeatable each measured mechanic was across your shots this session, independent of whether they went in. A lower coefficient of variation means that mechanic stayed more consistent shot to shot.</p>
+    </div>
     <div class="card">
       <h3>Shot-to-shot consistency</h3>
       <div class="card-sub">Coefficient of variation (std. dev. &divide; mean) per metric &mdash; lower means more consistent across your shots.</div>
@@ -1303,6 +1436,9 @@ function renderTrends(data) {
   }
   const notable = t.metric_trends.filter((m) => m.change !== null && m.early_n >= 2 && m.late_n >= 2);
   container.innerHTML = `
+    <div class="card details-explainer">
+      <p>Compares the first half of this session's shots to the second half &mdash; for shooting percentage and any mechanic with enough data in both halves. This is a two-point comparison, not a shot-by-shot trend line.</p>
+    </div>
     <div class="metric-chart-grid">
       <div class="card">
         <h3>Shooting percentage: early vs. late session</h3>
@@ -1346,7 +1482,7 @@ function renderReplay(data) {
       <button class="tab-btn" id="replay-diag">Diagnostic mode</button>
     </div>` : ""}
     <div class="replay-wrap">
-      <div class="replay-video"><video id="replay-video" controls></video></div>
+      <div class="replay-video"><video id="replay-video" controls preload="auto"></video></div>
       <div class="replay-side">
         <div class="card">
           <h3>Jump to shot</h3>

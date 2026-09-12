@@ -69,6 +69,12 @@ class SupportedFinding:
     metric_key: str
     metric_label: str
     evidence: Evidence
+    # Player-facing basketball language (see _PLAYER_CONCEPT/_NOTICED_*/
+    # _STRENGTH_INTRO below) -- metric_key/metric_label above stay the
+    # precise technical identifiers Details also uses; these are display-
+    # only additions for the Coach tab, never a second source of truth.
+    concept: str = ""
+    noticed_text: str = ""
 
 
 @dataclass
@@ -76,6 +82,7 @@ class CoachingPriority(SupportedFinding):
     source: str = ""  # "makes_vs_misses" | "consistency"
     confidence: str = "low"  # "high" | "medium" | "low" -- reuses feedback.py's own tiering for the mvm source
     cues: List[CoachingCue] = field(default_factory=list)
+    meaning_text: str = ""  # "what this means" -- connects the measurement to the physical shooting motion
 
 
 @dataclass
@@ -95,6 +102,165 @@ class CoachingSummary:
 _GENERIC_PRACTICE_CUE = CoachingCue(
     "Video a few reps focused on just this one thing before your next full session, so you can check it directly."
 )
+
+# ---------------------------------------------------------------------------
+# Player-facing basketball language. Every dict below is keyed by the exact
+# same metric_key from app.analytics.metric_extractors.METRICS and is
+# display-only -- metric_key/metric_label (the precise technical name shown
+# in Details) are never changed by any of this. A player reading the Coach
+# tab should never see a snake_case name or a bare technical term like
+# "upward-motion duration" as the primary heading; Details keeps the precise
+# technical labels for anyone who wants them.
+#
+# Each phrase below is deliberately scoped to exactly what compute_shot_
+# mechanics/metric_extractors.py actually measures (see the audit table in
+# the pass that introduced this) -- no phrase here claims something the
+# pipeline doesn't measure (e.g. "elbow flare", "wrist snap", "follow-
+# through", lateral/3D alignment, or a universal "correct" value). Where a
+# metric's sign/direction can't be safely simplified into a plain-English
+# "more/less" claim without risking getting the physical meaning backwards
+# (the two torso-lean metrics -- a signed angle where neither "higher" nor
+# "lower" maps to an obvious plain-English direction -- and the horizontal
+# release offset, whose direction depends on which way the shooter faces
+# camera), the wording stays neutral: it reports THAT the measurement
+# differed/varied, never a specific unverified direction.
+# ---------------------------------------------------------------------------
+
+# metric_key -> the concept shown as the Coach tab's heading for that metric.
+_PLAYER_CONCEPT = {
+    "knee_angle_at_load_deg": "Knee bend at your set point",
+    "knee_angle_at_release_deg": "Leg extension at release",
+    "elbow_angle_at_load_deg": "Elbow position at your set point",
+    "elbow_angle_at_release_deg": "Elbow extension at release",
+    "torso_lean_at_load_deg": "Body posture at your set point",
+    "torso_lean_at_release_deg": "Body posture at release",
+    "release_height_norm": "Release height",
+    "release_horizontal_offset_norm": "Release position",
+    "load_duration_sec": "Set-up rhythm",
+    "upward_duration_sec": "Shooting rhythm",
+    "total_prep_duration_sec": "Overall shot rhythm",
+    "apex_height_norm": "Shot arc height",
+    "trajectory_straightness_ratio": "Shot flight path",
+}
+
+# metric_key -> one sentence connecting the measurement to the physical
+# shooting motion ("what this means"), independent of direction/source.
+_METRIC_MEANING = {
+    "knee_angle_at_load_deg": "This is how deep your knee bend is at the bottom of your shot, right before you rise into it.",
+    "knee_angle_at_release_deg": "This is how straight your legs are at the exact moment the ball leaves your hand.",
+    "elbow_angle_at_load_deg": "This is how bent your shooting elbow is at your set point, before you start rising into the shot.",
+    "elbow_angle_at_release_deg": "This is how extended your shooting arm is at the moment of release.",
+    "torso_lean_at_load_deg": "This is how upright or leaned your upper body is at your set point.",
+    "torso_lean_at_release_deg": "This is how upright or leaned your upper body is at the moment of release.",
+    "release_height_norm": "This is how high above your hips you release the ball, sized to your own body.",
+    "release_horizontal_offset_norm": "This is where the ball leaves your hand relative to your shoulder, from the camera's view.",
+    "load_duration_sec": "This is how long you hold your set-up before starting to rise into the shot.",
+    "upward_duration_sec": "The time it took you to move from your dip into your release wasn't as repeatable across the session.",
+    "total_prep_duration_sec": "This is your full shot tempo, from set-up all the way through release.",
+    "apex_height_norm": "This is how high the ball's arc peaks above the point where you released it.",
+    "trajectory_straightness_ratio": "This is how straight the ball's flight path looked on camera after release.",
+}
+
+# metric_key -> (sentence when this session's makes measured higher, sentence
+# when misses measured higher). Pre-composed per metric (not a generic
+# "X was higher on Y" template) so each one states the correct physical
+# direction in plain English -- e.g. a higher knee_angle_at_release_deg
+# means straighter/more-extended legs, not "more bend".
+_NOTICED_MVM = {
+    "knee_angle_at_load_deg": (
+        "You set up with straighter legs (less knee bend) at your set point on your makes than on your misses this session.",
+        "You set up with more knee bend at your set point on your makes than on your misses this session.",
+    ),
+    "knee_angle_at_release_deg": (
+        "Your legs were more extended at release on your makes than on your misses this session.",
+        "Your legs were less extended (more bent) at release on your makes than on your misses this session.",
+    ),
+    "elbow_angle_at_load_deg": (
+        "Your shooting elbow was straighter at your set point on your makes than on your misses this session.",
+        "Your shooting elbow was more bent at your set point on your makes than on your misses this session.",
+    ),
+    "elbow_angle_at_release_deg": (
+        "Your shooting arm was more extended at release on your makes than on your misses this session.",
+        "Your shooting arm was less extended at release on your makes than on your misses this session.",
+    ),
+    "torso_lean_at_load_deg": (
+        "Your upper-body posture at your set point measured differently between your makes and misses this session.",
+        "Your upper-body posture at your set point measured differently between your makes and misses this session.",
+    ),
+    "torso_lean_at_release_deg": (
+        "Your upper-body posture at release measured differently between your makes and misses this session.",
+        "Your upper-body posture at release measured differently between your makes and misses this session.",
+    ),
+    "release_height_norm": (
+        "You released the ball from higher above your hips on your makes than on your misses this session.",
+        "You released the ball from lower above your hips on your makes than on your misses this session.",
+    ),
+    "release_horizontal_offset_norm": (
+        "Where you released the ball relative to your shoulder measured differently between your makes and misses this session.",
+        "Where you released the ball relative to your shoulder measured differently between your makes and misses this session.",
+    ),
+    "load_duration_sec": (
+        "You spent more time in your set-up before rising into the shot on your makes than on your misses this session.",
+        "You spent less time in your set-up before rising into the shot on your makes than on your misses this session.",
+    ),
+    "upward_duration_sec": (
+        "It took longer to go from the bottom of your shot into your release on your makes than on your misses this session.",
+        "It took less time to go from the bottom of your shot into your release on your makes than on your misses this session.",
+    ),
+    "total_prep_duration_sec": (
+        "Your overall shot tempo, set-up through release, was slower on your makes than on your misses this session.",
+        "Your overall shot tempo, set-up through release, was quicker on your makes than on your misses this session.",
+    ),
+    "apex_height_norm": (
+        "Your shot arced higher above your release point on your makes than on your misses this session.",
+        "Your shot arced lower above your release point on your makes than on your misses this session.",
+    ),
+    "trajectory_straightness_ratio": (
+        "Your shot's flight path looked straighter on your makes than on your misses this session.",
+        "Your shot's flight path looked less straight on your makes than on your misses this session.",
+    ),
+}
+
+# metric_key -> "what ArcVision noticed" when this metric is the priority via
+# the consistency (not makes-vs-misses) path -- no direction to report, just
+# that it was the least repeatable of the tracked mechanics.
+_NOTICED_CONSISTENCY = {
+    "knee_angle_at_load_deg": "Your knee bend at your set point varied more from shot to shot than your other measured mechanics.",
+    "knee_angle_at_release_deg": "Your leg extension at release varied more from shot to shot than your other measured mechanics.",
+    "elbow_angle_at_load_deg": "Your elbow position at your set point varied more from shot to shot than your other measured mechanics.",
+    "elbow_angle_at_release_deg": "Your elbow extension at release varied more from shot to shot than your other measured mechanics.",
+    "torso_lean_at_load_deg": "Your upper-body posture at your set point varied more from shot to shot than your other measured mechanics.",
+    "torso_lean_at_release_deg": "Your upper-body posture at release varied more from shot to shot than your other measured mechanics.",
+    "release_height_norm": "Your release height varied more from shot to shot than your other measured mechanics.",
+    "release_horizontal_offset_norm": "Where you released the ball relative to your shoulder varied more from shot to shot than your other measured mechanics.",
+    "load_duration_sec": "How long you spent in your set-up before rising into the shot varied more from shot to shot than your other measured mechanics.",
+    "upward_duration_sec": "Your timing from your dip into your release varied more from shot to shot than your other measured mechanics.",
+    "total_prep_duration_sec": "Your overall shot tempo varied more from shot to shot than your other measured mechanics.",
+    "apex_height_norm": "How high your shot arced above your release point varied more from shot to shot than your other measured mechanics.",
+    "trajectory_straightness_ratio": "Your shot's flight path shape varied more from shot to shot than your other measured mechanics.",
+}
+
+# metric_key -> a broader basketball-first framing of what it means for THIS
+# metric to be a player's most repeatable measured mechanic (used only for
+# the "strength" card, ahead of the specific measurement, per the same
+# "basketball meaning first, measurement second" rule as everything else
+# here). Deliberately does not claim this makes the mechanic "good" -- only
+# that it was the most repeatable one measured.
+_STRENGTH_INTRO = {
+    "knee_angle_at_load_deg": "Your knee bend at your set point was one of the most repeatable parts of your shot.",
+    "knee_angle_at_release_deg": "Your lower-body position at release was one of the most repeatable parts of your shot.",
+    "elbow_angle_at_load_deg": "Your elbow position at your set point was one of the most repeatable parts of your shot.",
+    "elbow_angle_at_release_deg": "Your shooting-arm extension at release was one of the most repeatable parts of your shot.",
+    "torso_lean_at_load_deg": "Your body posture at your set point was one of the most repeatable parts of your shot.",
+    "torso_lean_at_release_deg": "Your body posture at release was one of the most repeatable parts of your shot.",
+    "release_height_norm": "Your release height was one of the most repeatable parts of your shot.",
+    "release_horizontal_offset_norm": "Where you release the ball relative to your shoulder was one of the most repeatable parts of your shot.",
+    "load_duration_sec": "Your set-up rhythm was one of the most repeatable parts of your shot.",
+    "upward_duration_sec": "Your shooting rhythm into the release was one of the most repeatable parts of your shot.",
+    "total_prep_duration_sec": "Your overall shot tempo was one of the most repeatable parts of your shot.",
+    "apex_height_norm": "Your shot's arc height was one of the most repeatable parts of your shot.",
+    "trajectory_straightness_ratio": "Your shot's flight path shape was one of the most repeatable parts of your shot.",
+}
 
 # metric_key -> (cue built from a makes-vs-misses difference, cue built from
 # a shot-to-shot consistency observation). Both are neutral, generic
@@ -139,7 +305,7 @@ _METRIC_CUES = {
     ),
     "upward_duration_sec": (
         "Try matching the release rhythm you used on your makes.",
-        "Try keeping the timing of your rise-to-release motion consistent.",
+        "Focus on one smooth, repeatable rhythm from your dip into your release.",
     ),
     "total_prep_duration_sec": (
         "Try matching the overall shot rhythm you used on your makes.",
@@ -150,8 +316,8 @@ _METRIC_CUES = {
         "Try keeping your shot's arc height consistent shot to shot.",
     ),
     "trajectory_straightness_ratio": (
-        "Try releasing with the same follow-through you used on your makes -- it's closely tied to a straight flight path.",
-        "Try keeping your follow-through consistent -- it's closely tied to a straight flight path.",
+        "Try releasing your shot the same way you did on your makes -- that's when your flight path looked straightest.",
+        "Try releasing your shot the same way on every attempt -- that's when your flight path looks straightest.",
     ),
 }
 
@@ -205,9 +371,12 @@ def _select_strength(consistency_results: List[ConsistencyResult]) -> Optional[S
     if not top:
         return None
     c = top[0]
+    concept = _PLAYER_CONCEPT.get(c.metric_key, c.label)
+    noticed = _STRENGTH_INTRO.get(c.metric_key, f"Your {c.label.lower()} was one of the most repeatable parts of your shot.")
     return SupportedFinding(
         metric_key=c.metric_key, metric_label=c.label,
         evidence=Evidence(text=_consistency_evidence_text(c, "most consistent"), detail=_consistency_detail(c)),
+        concept=concept, noticed_text=noticed,
     )
 
 
@@ -217,7 +386,10 @@ def _select_priority(mvm_report: MakesVsMissesReport, consistency_results: List[
     # confidence bar; (2) the least-consistent, sufficiently-sampled
     # metric, as a fallback signal when makes-vs-misses data isn't
     # available or didn't turn up anything strong; (3) nothing -- reported
-    # honestly by the caller, not guessed at.
+    # honestly by the caller, not guessed at. Which metric wins here is
+    # entirely unchanged by the player-facing language added below -- the
+    # language is looked up AFTER the metric is already chosen, never fed
+    # back into the selection.
     diffs = top_differentiators(mvm_report, top_n=1)
     if diffs:
         comp = diffs[0]
@@ -226,11 +398,19 @@ def _select_priority(mvm_report: MakesVsMissesReport, consistency_results: List[
             key = _LABEL_TO_KEY.get(comp.metric_name, comp.metric_name)
             mvm_cue, _ = _METRIC_CUES.get(key, (None, None))
             cue_text = mvm_cue or f"Try matching the {comp.metric_name.lower()} you show on your made shots."
+            made_higher, missed_higher = _NOTICED_MVM.get(key, (None, None))
+            if made_higher and comp.made_mean is not None and comp.missed_mean is not None:
+                noticed = made_higher if comp.made_mean > comp.missed_mean else missed_higher
+            else:
+                noticed = f"Your {comp.metric_name.lower()} {_direction_phrase(comp)} this session."
             return CoachingPriority(
                 metric_key=key, metric_label=comp.metric_name,
                 evidence=Evidence(text=_mvm_evidence_text(comp), detail=_mvm_detail(comp)),
                 source="makes_vs_misses", confidence=conf,
                 cues=[CoachingCue(cue_text), _GENERIC_PRACTICE_CUE],
+                concept=_PLAYER_CONCEPT.get(key, comp.metric_name),
+                noticed_text=noticed,
+                meaning_text=_METRIC_MEANING.get(key, ""),
             )
 
     least = least_consistent_metrics(consistency_results, top_n=1)
@@ -243,6 +423,9 @@ def _select_priority(mvm_report: MakesVsMissesReport, consistency_results: List[
             evidence=Evidence(text=_consistency_evidence_text(c, "least consistent"), detail=_consistency_detail(c)),
             source="consistency", confidence="medium",
             cues=[CoachingCue(cue_text), _GENERIC_PRACTICE_CUE],
+            concept=_PLAYER_CONCEPT.get(c.metric_key, c.label),
+            noticed_text=_NOTICED_CONSISTENCY.get(c.metric_key, f"Your {c.label.lower()} varied more from shot to shot than your other measured mechanics."),
+            meaning_text=_METRIC_MEANING.get(c.metric_key, ""),
         )
 
     return None
@@ -269,13 +452,18 @@ def _consistency_note(consistency_results: List[ConsistencyResult]) -> Tuple[Opt
 
 
 def _build_coach_note(strength: Optional[SupportedFinding], priority: Optional[CoachingPriority]) -> str:
+    # Basketball concept names (e.g. "shooting rhythm"), not raw metric
+    # labels (e.g. "upward-motion duration") -- Details keeps the precise
+    # technical label; this top-of-tab summary is the player-facing one.
+    strength_concept = strength.concept if strength else ""
+    priority_concept = priority.concept if priority else ""
     if strength and priority:
-        return (f"Your {strength.metric_label.lower()} was the most consistent part of your form this session, "
-                f"and {priority.metric_label.lower()} is the clearest place to focus next.")
+        return (f"Your {strength_concept.lower()} was the most consistent part of your form this session, "
+                f"and your {priority_concept.lower()} is the clearest place to focus next.")
     if priority:
-        return f"This session's clearest signal is in your {priority.metric_label.lower()} -- see below for what the evidence shows."
+        return f"This session's clearest signal is in your {priority_concept.lower()} -- see below for what the evidence shows."
     if strength:
-        return f"Your {strength.metric_label.lower()} was the most consistent part of your form this session -- there wasn't a clear priority to flag yet."
+        return f"Your {strength_concept.lower()} was the most consistent part of your form this session -- there wasn't a clear priority to flag yet."
     return "There wasn't enough evidence yet this session to identify a clear strength or priority -- take a few more shots and check back."
 
 

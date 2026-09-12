@@ -59,7 +59,7 @@ All captured from the real, precomputed public demo session — not sample or fa
   committed to git before the pipeline ever ran on it: shot detection matched 18/18 real shots;
   outcome classification fell short of its precommitted bar and is reported as a documented
   limitation, not patched to pass (see "Evaluation & Limitations" below).
-- 265-test regression suite — unit, synthetic integration, and API tests, including one real
+- 281-test regression suite — unit, synthetic integration, and API tests, including one real
   end-to-end run of the actual CV models against a synthetic video.
 
 ## How it works
@@ -247,7 +247,7 @@ fatal/excluded shots always staying expanded, and normal-mode ordering/behavior 
 the verified-outcome chart coloring/legend fix (Details charts follow the same display-outcome
 helper as the rest of the app instead of leaking the raw automatic outcome), and the
 missing-measurement chart footnote (shown only when a metric genuinely omits a shot).
-**265 tests passing.**
+**281 tests passing.**
 (Some of these
 cover shadow-mode research modules that were evaluated and never wired into production — see
 "Evaluation & Limitations" below for which is which.)

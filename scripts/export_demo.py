@@ -31,39 +31,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.storage import repository
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from demo_ground_truth import DEMO_SESSION_ID, VERIFIED_OUTCOMES_BY_SHOT_INDEX  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "dist"
 FRONTEND_DIR = ROOT / "frontend"
 
-# The one session this bundle demonstrates -- a real, already-analyzed
-# session, approved for this purpose. Change here only if you deliberately
-# choose a different already-completed session; this script never picks one
-# automatically. Currently arcvision_demo_final.mov -- the frozen final
-# showcase recording (11 shots, ground truth recorded BEFORE inference in
-# docs/FINAL_DEMO_GROUND_TRUTH.md, blind-evaluated in
-# docs/FINAL_DEMO_BLIND_EVALUATION.md). Superseded TWO earlier session ids
-# this pointed to before: arcvision_demo_01_muted.mov's 3809b2b304064f21
-# (a different, older showcase video), and then 29c7e751775e4f20 (this same
-# video, but analyzed before this session's segmentation fix -- see
-# docs/SHOWCASE_SEGMENTATION_FIX.md -- so it still had 13 detected windows
-# including 2 false positives; export_demo.py's own shot-count safety check
-# refused to export it once VERIFIED_OUTCOMES_BY_SHOT_INDEX below expected
-# exactly 11). This id (ab556626332b440e, via
-# scripts/create_final_demo_session.py) is a fresh run of the same source
-# video under current, post-segmentation-fix production code: 11/11 shots,
-# 0 false positives, 0 false negatives.
-DEMO_SESSION_ID = "fee1c3bcd7b84322"
-
-# Frozen ground truth for arcvision_demo_final.mov, copied verbatim from
-# docs/FINAL_DEMO_GROUND_TRUTH.md -- recorded by the user from manual review
-# of the raw video BEFORE ArcVision inference ever ran on it. This mapping
-# is applied ONLY to DEMO_SESSION_ID's exported payload, in this script,
-# never in app/ (the production pipeline never sees or uses it, and no
-# other session -- local or otherwise -- is ever touched by it).
-VERIFIED_OUTCOMES_BY_SHOT_INDEX = {
-    1: "made", 2: "made", 3: "made", 4: "made", 5: "missed",
-    6: "made", 7: "made", 8: "missed", 9: "missed", 10: "made", 11: "made",
-}
+# DEMO_SESSION_ID and VERIFIED_OUTCOMES_BY_SHOT_INDEX now live in
+# scripts/demo_ground_truth.py (imported above) -- the one source of truth
+# shared with scripts/regenerate_featured_demo_replay_labels.py, which this
+# script calls into below to guarantee the featured replay video's burned-in
+# outcome labels can never silently go stale. See that module for the full
+# history of how DEMO_SESSION_ID was chosen (superseded session ids, the
+# segmentation fix, etc.) -- unchanged, just relocated.
 
 
 def apply_verified_outcomes(payload: dict) -> dict:
@@ -142,6 +123,8 @@ FRONTEND_FILES = [
     "static/js/charts.js",
     "static/favicon.svg",
     "static/images/hero-basketball.png",
+    "static/images/preview-replay.png",
+    "static/images/preview-shot.png",
 ]
 
 # Filenames/substrings that must NEVER appear anywhere in the export.
@@ -239,7 +222,45 @@ def _find_annotated_video() -> Path:
     path = Path(path_str)
     if not path.exists():
         raise ExportError(f"Annotated video not found on disk: {path}")
-    return path
+
+    # The original annotated.mp4's burned-in outcome labels reflect the
+    # AUTOMATIC classifier (the only outcome that exists at render time) --
+    # which contradicts this demo's verified outcomes whenever the two
+    # disagree (e.g. shot 7: automatic "missed", verified "made"). A sibling
+    # file with the SAME video re-rendered by
+    # scripts/regenerate_featured_demo_replay_labels.py, with only the small
+    # outcome-label region patched to show the verified outcome instead
+    # (everything else -- skeleton/ball/hoop/shot-number/RELEASE -- is
+    # identical), is REQUIRED here for DEMO_SESSION_ID -- never silently
+    # falling back to the original, which would re-ship contradictory
+    # labels. If it's missing, regenerate it deterministically on the spot
+    # (same original video + the same frozen VERIFIED_OUTCOMES_BY_SHOT_INDEX
+    # always produce the same output -- no CV inference, no randomness) so a
+    # normal `python scripts/export_demo.py` run stays reproducible without
+    # a separate manual step. If regeneration itself isn't possible (e.g.
+    # the original video is missing), this fails loudly with instructions
+    # rather than exporting anything. Affects ONLY DEMO_SESSION_ID's
+    # exported bundle: the DB row and the original annotated.mp4 on disk
+    # (what a normal local session would show) are untouched either way.
+    featured_path = path.with_name("annotated_featured.mp4")
+    if not featured_path.exists():
+        from regenerate_featured_demo_replay_labels import RegenerationError, regenerate
+        print("Featured replay (verified-outcome labels) not found -- regenerating it now...")
+        try:
+            regenerate(DEMO_SESSION_ID)
+        except RegenerationError as e:
+            raise ExportError(
+                f"Cannot produce the featured demo's replay video: {e} Run "
+                f"`.venv\\Scripts\\python scripts\\regenerate_featured_demo_replay_labels.py` "
+                f"manually and re-run this export -- refusing to fall back to the original "
+                f"annotated.mp4, which would ship contradictory outcome labels."
+            )
+        if not featured_path.exists():
+            raise ExportError(
+                f"regenerate_featured_demo_replay_labels.py did not produce {featured_path} "
+                f"-- refusing to fall back to the original annotated.mp4."
+            )
+    return featured_path
 
 
 def _find_methodology() -> Path:

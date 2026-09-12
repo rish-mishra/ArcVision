@@ -224,3 +224,119 @@ def test_no_data_session_abstains_cleanly():
     assert coaching.strength is None
     assert "no_usable_shots" in coaching.data_quality_notes
     assert coaching.coach_note
+
+
+# ---------------------------------------------------------------------------
+# Player-facing basketball language (added alongside _PLAYER_CONCEPT,
+# _METRIC_MEANING, _NOTICED_MVM, _NOTICED_CONSISTENCY, _STRENGTH_INTRO).
+# These verify the TRANSLATION layer only -- none of them touch which
+# metric wins priority/strength (see test_healthy_session_makes_vs_misses_
+# priority and friends above for that, all still passing unchanged).
+# ---------------------------------------------------------------------------
+from app.analytics.coaching import (  # noqa: E402
+    _METRIC_CUES, _METRIC_MEANING, _NOTICED_CONSISTENCY, _NOTICED_MVM, _PLAYER_CONCEPT, _STRENGTH_INTRO,
+)
+from app.analytics.metric_extractors import METRICS  # noqa: E402
+
+
+def test_every_supported_metric_has_full_player_facing_copy():
+    """Every metric_key in the shared METRICS registry must have an entry in
+    every player-facing dict -- a metric silently missing from one of these
+    would fall through to a generic/technical fallback phrase instead of the
+    intended basketball-language copy."""
+    for m in METRICS:
+        assert m.key in _PLAYER_CONCEPT, f"{m.key} missing a player concept name"
+        assert m.key in _METRIC_MEANING, f"{m.key} missing a 'what this means' sentence"
+        assert m.key in _NOTICED_MVM, f"{m.key} missing makes-vs-misses noticed text"
+        assert m.key in _NOTICED_CONSISTENCY, f"{m.key} missing consistency noticed text"
+        assert m.key in _STRENGTH_INTRO, f"{m.key} missing a strength-card intro sentence"
+        assert m.key in _METRIC_CUES, f"{m.key} missing a coaching cue"
+
+
+def test_no_snake_case_metric_keys_leak_into_player_facing_copy():
+    """The Coach tab must never show a raw internal identifier like
+    'upward_duration_sec' -- every player-facing string should read as a
+    natural sentence, not a variable name."""
+    for m in METRICS:
+        assert "_" not in _PLAYER_CONCEPT[m.key]
+        assert "_" not in _METRIC_MEANING[m.key]
+        made_text, missed_text = _NOTICED_MVM[m.key]
+        assert "_" not in made_text and "_" not in missed_text
+        assert "_" not in _NOTICED_CONSISTENCY[m.key]
+        assert "_" not in _STRENGTH_INTRO[m.key]
+        made_cue, consistency_cue = _METRIC_CUES[m.key]
+        assert "_" not in made_cue and "_" not in consistency_cue
+
+
+def test_featured_demo_priority_metric_and_cue_text_are_populated():
+    """A makes-vs-misses-sourced priority (the featured demo's actual case)
+    must carry a concept name, a direction-correct noticed sentence, a
+    meaning sentence, and a cue -- and that cue must be the specific
+    per-metric one (from _METRIC_CUES), not the generic fallback, for every
+    metric currently supported."""
+    shots = []
+    idx, t = 1, 0.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MADE, t, knee_release=170.0 + (idx % 3)))
+        idx += 1; t += 5.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MISSED, t, knee_release=145.0 + (idx % 3)))
+        idx += 1; t += 5.0
+    coaching, _, _, _ = _coach(shots)
+    p = coaching.priority
+    assert p is not None and p.source == "makes_vs_misses"
+    assert p.concept and "_" not in p.concept
+    assert p.noticed_text and "_" not in p.noticed_text
+    assert p.meaning_text and "_" not in p.meaning_text
+    expected_cue = _METRIC_CUES[p.metric_key][0]
+    assert p.cues[0].text == expected_cue
+
+
+def test_strength_card_uses_broader_concept_before_specific_measurement():
+    shots = []
+    idx, t = 1, 0.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MADE, t, knee_release=170.0))
+        idx += 1; t += 5.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MISSED, t, knee_release=145.0))
+        idx += 1; t += 5.0
+    coaching, _, _, _ = _coach(shots)
+    if coaching.strength is not None:
+        s = coaching.strength
+        assert s.concept and "_" not in s.concept
+        assert s.noticed_text and "_" not in s.noticed_text
+        assert s.noticed_text == _STRENGTH_INTRO[s.metric_key]
+
+
+def test_coach_note_never_contains_a_raw_metric_key():
+    """coach_note is the top-of-tab summary sentence -- it must read in
+    plain basketball language, never a snake_case identifier."""
+    shots = []
+    idx, t = 1, 0.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MADE, t, knee_release=170.0 + (idx % 3)))
+        idx += 1; t += 5.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MISSED, t, knee_release=145.0 + (idx % 3)))
+        idx += 1; t += 5.0
+    coaching, _, _, _ = _coach(shots)
+    for m in METRICS:
+        assert m.key not in coaching.coach_note
+    assert "_" not in coaching.coach_note
+
+
+def test_player_facing_fields_are_deterministic():
+    shots = []
+    idx, t = 1, 0.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MADE, t, knee_release=170.0 + (idx % 3)))
+        idx += 1; t += 5.0
+    for _ in range(6):
+        shots.append(_shot(idx, ShotOutcome.MISSED, t, knee_release=145.0 + (idx % 3)))
+        idx += 1; t += 5.0
+    coaching1, _, _, _ = _coach(shots)
+    coaching2, _, _, _ = _coach(shots)
+    assert coaching1.priority.concept == coaching2.priority.concept
+    assert coaching1.priority.noticed_text == coaching2.priority.noticed_text
+    assert coaching1.priority.meaning_text == coaching2.priority.meaning_text
