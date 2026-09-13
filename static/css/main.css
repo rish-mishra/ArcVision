@@ -601,7 +601,7 @@ body.is-demo-mode .proof-strip { display: block; }
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px;
 }
 
-.coach-note-block { font-size: 17px; line-height: 1.5; color: var(--text-primary); font-weight: 600; padding: 2px 0 22px; max-width: 720px; }
+.coach-note-block { font-size: 17px; line-height: 1.5; color: var(--text-primary); font-weight: 600; padding: 2px 0 22px; max-width: 880px; }
 .coach-note-block p { margin: 0; }
 
 /* The visual centerpiece -- deliberately larger and more elaborate than
@@ -618,7 +618,7 @@ body.is-demo-mode .proof-strip { display: block; }
   color: var(--brand); margin-bottom: 10px;
 }
 .coach-focus h2 { position: relative; margin: 0 0 10px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
-.coach-focus-evidence { position: relative; font-size: 15px; color: var(--text-secondary); max-width: 560px; margin: 0 0 20px; }
+.coach-focus-evidence { position: relative; font-size: 15px; color: var(--text-secondary); max-width: 880px; margin: 0 0 20px; }
 .coach-focus.coach-focus-empty { padding: 26px 28px; }
 .coach-focus.coach-focus-empty p { position: relative; color: var(--text-secondary); margin: 0; }
 @media (max-width: 480px) {
@@ -634,7 +634,7 @@ body.is-demo-mode .proof-strip { display: block; }
    eyebrow, section labels). */
 .coach-focus-meaning { position: relative; margin: 0 0 18px; }
 .coach-focus-meaning-label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-2); margin-bottom: 6px; }
-.coach-focus-meaning p { font-size: 14px; color: var(--text-secondary); margin: 0; max-width: 560px; }
+.coach-focus-meaning p { font-size: 14px; color: var(--text-secondary); margin: 0; max-width: 880px; }
 
 .coach-card-strength-detail { font-size: 13px; color: var(--text-muted); margin: 6px 0 0; }
 
