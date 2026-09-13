@@ -1096,10 +1096,11 @@ function renderShotDetail(shot) {
   // Verified demo shots: the primary Outcome row is simply the verified
   // result with a small, restrained "VERIFIED" label -- not the automatic
   // classifier's call, so it never belongs in the same row as a
-  // confidence score. The automatic prediction is real, useful technical
-  // information, so it's kept (never deleted) in a collapsed section
-  // right below, not deleted and not given equal visual weight with the
-  // primary result -- see renderAutomaticAnalysisDetails().
+  // confidence score. The automatic prediction/confidence/reason/evidence
+  // are not rendered anywhere in this featured session's shot detail (see
+  // the verified-branch template below) -- presentation-only, the data
+  // itself (automatic_outcome, outcome_confidence, outcome_reason,
+  // outcome_evidence) remains fully preserved in the exported session.json.
   const outcomeRows = verified
     ? [["Outcome", `${verified.toUpperCase()} <span class="verified-badge">VERIFIED</span>`]]
     : [
@@ -1162,13 +1163,27 @@ function renderShotDetail(shot) {
     <table class="metric-table"><tbody>
       ${rows.map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`).join("")}
     </tbody></table>`;
+  // Verified demo shots: the automatic classifier's own prediction/reason/
+  // evidence is real, useful engineering information, but showing it --
+  // even collapsed -- next to a manually-verified result reads as
+  // confusing in a public portfolio demo (a VERIFIED MADE shot with an
+  // expandable "MISSED" underneath it). Presentation-only: automatic_
+  // outcome/outcome_confidence/outcome_reason/outcome_evidence are all
+  // still exported untouched in session.json (see scripts/export_demo.py's
+  // apply_verified_outcomes -- never overwritten, never deleted), this
+  // just stops rendering them in this one UI location for this one
+  // session. `verified` (shot.verified_outcome) is the same existing
+  // signal already used above (Outcome row, Shooting side row) to
+  // distinguish this one frozen, manually-verified session from a normal
+  // local upload -- no new session-ID check. A local upload (verified
+  // always undefined) keeps showing its automatic evidence exactly as
+  // before, via `evidenceSection` in the branch below.
   document.getElementById("shot-detail").innerHTML = verified
     ? `
     <h3>Shot ${shot.shot_index}</h3>
     <div class="card-sub">${explainerText}</div>
     ${metricTable}
     ${qualityPanel}
-    ${renderAutomaticAnalysisDetails(shot, evidenceSection)}
   `
     : `
     <h3>Shot ${shot.shot_index}</h3>
@@ -1177,27 +1192,6 @@ function renderShotDetail(shot) {
     ${metricTable}
     ${evidenceSection}
   `;
-}
-
-/* Verified demo shots only: the automatic classifier's own call is real,
-   useful technical information -- never deleted -- but showing it with
-   equal visual weight next to the verified primary result made the demo
-   look broken (e.g. a verified MADE shot next to "no phase sequence met
-   the positive-evidence bar"), so it's collapsed into one neutral,
-   opt-in disclosure instead. No color/warning treatment is applied even
-   when the automatic call disagrees with the verified outcome -- this is
-   presented as ordinary technical detail, not an error. */
-function renderAutomaticAnalysisDetails(shot, evidenceSection) {
-  return `
-    <details class="coach-evidence" style="margin-top:14px;">
-      <summary>Automatic analysis details</summary>
-      <table class="metric-table"><tbody>
-        <tr><td>Automatic prediction</td><td class="num">${(shot.automatic_outcome || shot.outcome).toUpperCase()}</td></tr>
-        <tr><td>Confidence</td><td class="num">${confidenceCell(shot.outcome_confidence)}</td></tr>
-        <tr><td>Reason</td><td class="num">${humanize(shot.outcome_reason)}</td></tr>
-      </tbody></table>
-      ${evidenceSection}
-    </details>`;
 }
 
 const MECHANICS_METRICS = [

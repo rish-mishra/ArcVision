@@ -248,8 +248,9 @@ def test_b_normal_session_summary_still_generates_the_unknown_warning():
 def test_c_verified_outcome_is_the_only_field_in_the_primary_outcome_row():
     # Frontend regression: the verified branch of renderShotDetail()'s
     # primary "Outcome" row must not reference automatic_outcome/
-    # outcome_confidence -- those belong only in the secondary, collapsed
-    # renderAutomaticAnalysisDetails() section.
+    # outcome_confidence -- the featured demo's shot detail never renders
+    # the automatic classifier's call at all (see the ARCVISION -- FEATURED
+    # DEMO AUTOMATIC DIAGNOSTICS CLEANUP tests below).
     app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
     start = app_js.index("const outcomeRows = verified")
     end = app_js.index(";", app_js.index(": [", start))
@@ -259,20 +260,10 @@ def test_c_verified_outcome_is_the_only_field_in_the_primary_outcome_row():
     assert "outcome_confidence" not in outcome_rows_block
 
 
-def test_d_and_e_automatic_prediction_confidence_reason_available_in_secondary_details():
-    app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-    start = app_js.index("function renderAutomaticAnalysisDetails")
-    body = app_js[start:start + 800]
-    assert "Automatic analysis details" in body  # the <summary> disclosure label
-    assert "automatic_outcome" in body  # D: automatic prediction preserved
-    assert "outcome_confidence" in body  # E: automatic confidence preserved
-    assert "outcome_reason" in body  # E: automatic reason preserved
-
-
 def test_f_quality_panel_still_rendered_unconditionally():
     app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
     start = app_js.index("function renderShotDetail")
-    end = app_js.index("function renderAutomaticAnalysisDetails")
+    end = app_js.index("const MECHANICS_METRICS")
     body = app_js[start:end]
     # renderQualityPanel must be called once, unconditionally (not inside
     # an `if (!verified)` branch) -- tracking/pose quality warnings are
@@ -365,18 +356,6 @@ def test_e_technical_details_disclosure_remains_accessible():
     assert "<summary>Technical details</summary>" in body
 
 
-def test_f_automatic_analysis_details_independently_collapsible():
-    # Two separate <details> elements, not one nested inside the other --
-    # collapsing/expanding one must not affect the other.
-    app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-    quality_fn_start = app_js.index("function renderQualityPanel")
-    auto_fn_start = app_js.index("function renderAutomaticAnalysisDetails")
-    assert quality_fn_start < auto_fn_start  # two distinct top-level functions
-    render_shot_detail = app_js[app_js.index("function renderShotDetail"):auto_fn_start]
-    assert "renderAutomaticAnalysisDetails(shot" in render_shot_detail
-    assert "${qualityPanel}" in render_shot_detail
-
-
 def test_g_normal_mode_quality_panel_unchanged():
     # renderShotDetail's non-verified branch must call renderQualityPanel
     # with collapseIfOrdinary=false (the 4th argument), and must not
@@ -386,11 +365,67 @@ def test_g_normal_mode_quality_panel_unchanged():
     call_start = app_js.index("renderQualityPanel(shot, m.warnings")
     call_line = app_js[call_start:app_js.index("\n", call_start)]
     assert "!!verified)" in call_line  # collapseIfOrdinary is exactly the verified flag, false for normal sessions
-    non_verified_branch = app_js[app_js.index(": `\n    <h3>Shot"):app_js.index("function renderAutomaticAnalysisDetails")]
+    non_verified_branch = app_js[app_js.index(": `\n    <h3>Shot"):app_js.index("const MECHANICS_METRICS")]
     assert "${qualityPanel}" in non_verified_branch
     assert "${metricTable}" in non_verified_branch
     # quality panel still precedes the metric table for normal sessions
     assert non_verified_branch.index("${qualityPanel}") < non_verified_branch.index("${metricTable}")
+
+
+# ---------------------------------------------------------------------------
+# ARCVISION -- FEATURED DEMO AUTOMATIC DIAGNOSTICS CLEANUP. The verified
+# demo's shot detail used to hide the automatic classifier's prediction/
+# confidence/reason/evidence inside a collapsed "Automatic analysis details"
+# <details> disclosure (renderAutomaticAnalysisDetails()) -- useful for
+# engineering, but confusing in a public portfolio demo (e.g. a VERIFIED
+# MADE shot with an expandable "MISSED" underneath it). This pass removes
+# that disclosure (and the now-unused function) from the featured session's
+# UI entirely -- presentation-only: automatic_outcome/outcome_confidence/
+# outcome_reason/outcome_evidence remain fully preserved in the exported
+# session.json (see test_c_raw_automatic_outcome_is_preserved_not_overwritten
+# above, unaffected by this pass), and local/non-verified sessions keep
+# showing their automatic evidence exactly as before via `evidenceSection`.
+# ---------------------------------------------------------------------------
+
+def test_h_automatic_analysis_details_removed_from_app_js():
+    # The disclosure, its <summary> label, and the function that built it
+    # must all be gone -- not just unreferenced.
+    app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "renderAutomaticAnalysisDetails" not in app_js
+    assert "Automatic analysis details" not in app_js
+
+
+def test_i_verified_branch_never_renders_automatic_prediction_fields():
+    # The featured/verified template (renderShotDetail's `verified ? ...`
+    # branch) must not reference automatic_outcome, outcome_confidence, or
+    # outcome_reason anywhere -- not just absent from the old disclosure.
+    app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    verified_branch = app_js[app_js.index("? `\n    <h3>Shot"):app_js.index(": `\n    <h3>Shot")]
+    assert "automatic_outcome" not in verified_branch
+    assert "outcome_confidence" not in verified_branch
+    assert "outcome_reason" not in verified_branch
+    assert "evidenceSection" not in verified_branch
+
+
+def test_j_quality_panel_details_element_unaffected_by_the_removal():
+    # The measurement-quality panel is a separate, independent <details>
+    # element (renderQualityPanel) that must keep working exactly as before
+    # -- this pass only removes the automatic-analysis disclosure, nothing
+    # else in the shot-detail card.
+    app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "quality-panel-collapsed" in app_js
+    assert "function renderQualityPanel" in app_js
+
+
+def test_k_local_upload_branch_still_shows_automatic_evidence():
+    # Normal/local sessions (verified always undefined) are unaffected by
+    # this pass -- their branch still builds the primary Outcome row from
+    # the automatic outcome/confidence/reason, and still inlines
+    # `evidenceSection` (the raw outcome-evidence table), exactly as before.
+    app_js = (export_demo.ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    non_verified_branch = app_js[app_js.index(": `\n    <h3>Shot"):app_js.index("const MECHANICS_METRICS")]
+    assert "shot.outcome.toUpperCase()" in app_js  # non-verified Outcome row source
+    assert "${evidenceSection}" in non_verified_branch
 
 
 def test_h_no_warning_data_removed_from_exported_json():

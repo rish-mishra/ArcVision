@@ -22,9 +22,13 @@ pipeline's output, run once ahead of time so the demo can be hosted for $0 as a 
 
 **One thing is different in this demo:** its make/miss outcomes were manually verified against
 the source video, so the interface can be explored against a known-correct result. The automatic
-classifier's own prediction is still shown for every shot, as secondary information — not
-hidden, just not the headline number (see "Evaluation & Limitations" below for how that
-classifier performs on video it wasn't tuned on).
+classifier's own prediction is preserved in the underlying data for every shot — never
+overwritten or discarded — but isn't surfaced per-shot in this featured session's UI, since
+showing it disagree with the verified result (e.g. a verified MADE shot the classifier called
+MISSED) reads as confusing rather than useful in a portfolio demo (see "Evaluation & Limitations"
+below for how that classifier performs on video it wasn't tuned on). A normal local upload still
+shows the automatic prediction directly, since there's no separate verified result to reconcile
+it against.
 
 | | Public demo | Local application |
 |---|---|---|
@@ -59,7 +63,7 @@ All captured from the real, precomputed public demo session — not sample or fa
   committed to git before the pipeline ever ran on it: shot detection matched 18/18 real shots;
   outcome classification fell short of its precommitted bar and is reported as a documented
   limitation, not patched to pass (see "Evaluation & Limitations" below).
-- 281-test regression suite — unit, synthetic integration, and API tests, including one real
+- 283-test regression suite — unit, synthetic integration, and API tests, including one real
   end-to-end run of the actual CV models against a synthetic video.
 
 ## How it works
@@ -247,7 +251,7 @@ fatal/excluded shots always staying expanded, and normal-mode ordering/behavior 
 the verified-outcome chart coloring/legend fix (Details charts follow the same display-outcome
 helper as the rest of the app instead of leaking the raw automatic outcome), and the
 missing-measurement chart footnote (shown only when a metric genuinely omits a shot).
-**281 tests passing.**
+**283 tests passing.**
 (Some of these
 cover shadow-mode research modules that were evaluated and never wired into production — see
 "Evaluation & Limitations" below for which is which.)
